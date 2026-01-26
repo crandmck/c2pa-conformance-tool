@@ -170,7 +170,7 @@
     </div>
 
     <!-- Upload Area -->
-    <div class="max-w-2xl mx-auto">
+    <div class="max-w-4xl mx-auto">
       <FileUpload on:fileselect={handleFileSelect} compact={false} />
     </div>
   {:else}
