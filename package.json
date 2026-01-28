@@ -7,20 +7,30 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "postinstall": "mkdir -p public && cp node_modules/@contentauth/c2pa-web/dist/resources/c2pa_bg.wasm public/c2pa.wasm"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.0.1",
     "@tailwindcss/forms": "^0.5.11",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/svelte": "^5.3.1",
     "@tsconfig/svelte": "^5.0.2",
+    "@vitest/ui": "^4.0.18",
     "autoprefixer": "^10.4.23",
+    "happy-dom": "^20.4.0",
+    "jsdom": "^27.4.0",
     "postcss": "^8.5.6",
     "svelte": "^4.2.8",
     "svelte-check": "^3.6.2",
     "tailwindcss": "^3.4.19",
     "tslib": "^2.6.2",
     "typescript": "^5.3.3",
-    "vite": "^5.0.11"
+    "vite": "^5.0.11",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@contentauth/c2pa-web": "^0.5.6"

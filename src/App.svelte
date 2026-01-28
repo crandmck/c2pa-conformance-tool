@@ -112,6 +112,12 @@
     event.preventDefault()
     event.stopPropagation()
   }
+
+  function resetToHome() {
+    report = null
+    error = null
+    processing = false
+  }
 </script>
 
 <main
@@ -131,22 +137,52 @@
     </div>
   {/if}
 
+  <!-- Navigation Bar (always shown) -->
+  <nav class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 mb-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo and Title -->
+        <button
+          on:click={resetToHome}
+          class="flex items-center gap-3 hover:opacity-80 transition-opacity bg-transparent border-none p-0 cursor-pointer"
+          class:cursor-default={!report && !processing}
+          class:hover:opacity-100={!report && !processing}
+          disabled={!report && !processing}
+          aria-label={report || processing ? "Return to home" : "C2PA Verify"}
+        >
+          <div class="flex items-center gap-2">
+            <img src="/content_credentials_icon.svg" alt="Content Credentials" class="h-8 w-auto" />
+            <img src="/c2pa_icon.svg" alt="C2PA" class="h-8 w-auto" />
+          </div>
+          <div class="hidden sm:block">
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">C2PA Verify</h1>
+          </div>
+        </button>
+
+        <!-- Actions -->
+        <div class="flex items-center gap-4">
+          {#if report || processing}
+            <FileUpload on:fileselect={handleFileSelect} compact={true} />
+          {/if}
+        </div>
+      </div>
+    </div>
+  </nav>
+
   {#if !report && !processing}
     <!-- Hero Section -->
-    <div class="max-w-4xl mx-auto text-center mb-12">
-      <!-- Logos -->
-      <div class="flex items-center justify-center gap-6 mb-8">
-        <img src="/content_credentials_icon.svg" alt="Content Credentials" class="h-16 w-auto" />
-        <img src="/c2pa_icon.svg" alt="C2PA" class="h-16 w-auto" />
-      </div>
-
-      <h1 class="text-5xl font-bold text-gray-900 dark:text-white mb-6">C2PA Verify</h1>
-      <p class="text-xl text-gray-600 dark:text-gray-400 mb-8">
-        Content Credentials Validator and Conformance Testing Tool
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center mb-12">
+      <h2 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+        Content Credentials Validator<br />
+        and Conformance Testing Tool
+      </h2>
+      <p class="text-lg text-gray-600 dark:text-gray-400 mb-8">
+        Verify C2PA manifests and test against the official trust lists
       </p>
 
+      <!-- What are Content Credentials -->
       <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-8 text-left">
-        <h2 class="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-3">What are Content Credentials?</h2>
+        <h3 class="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-3">What are Content Credentials?</h3>
         <p class="text-gray-700 dark:text-gray-300 mb-3">
           Content Credentials from The Coalition for Content Provenance and Authenticity (C2PA) is the technical standard for digital provenance. It provides verifiable assertions about the origin and history of digital content including images, video, audio, and documents. Here you can:
         </p>
@@ -176,43 +212,40 @@
     </div>
 
     <!-- Upload Area -->
-    <div class="max-w-4xl mx-auto">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
       <FileUpload on:fileselect={handleFileSelect} compact={false} />
     </div>
-  {:else}
-    <!-- Compact Header when viewing report -->
-    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-8">
-      <div class="flex-1 flex items-center gap-4">
-        <div class="flex items-center gap-3">
-          <img src="/content_credentials_icon.svg" alt="Content Credentials" class="h-10 w-auto" />
-          <img src="/c2pa_icon.svg" alt="C2PA" class="h-10 w-auto" />
-        </div>
-        <div>
-          <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-1">C2PA Verify</h1>
-          <p class="text-gray-600 dark:text-gray-400">Content Credentials Validator</p>
-        </div>
+  {/if}
+
+  <!-- Certificate Manager below nav (when viewing report and certificates exist) -->
+  {#if (report || processing) && testCertificates.length > 0}
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
+      <CertificateManager
+        bind:testCertificates={testCertificates}
+        on:certificatesUpdated={handleCertificatesUpdated}
+      />
+    </div>
+  {/if}
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    {#if processing}
+      <div class="flex flex-col items-center gap-4 py-16">
+        <div class="w-16 h-16 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin"></div>
+        <p class="text-lg text-gray-700 dark:text-gray-300">Processing file...</p>
       </div>
-      <FileUpload on:fileselect={handleFileSelect} compact={true} />
-    </div>
-  {/if}
+    {/if}
 
-  {#if processing}
-    <div class="flex flex-col items-center gap-4 py-16">
-      <div class="w-16 h-16 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin"></div>
-      <p class="text-lg text-gray-700 dark:text-gray-300">Processing file...</p>
-    </div>
-  {/if}
+    {#if error}
+      <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 my-8">
+        <h2 class="text-2xl font-semibold text-red-700 dark:text-red-400 mb-2">Error</h2>
+        <p class="text-red-600 dark:text-red-300">{error}</p>
+      </div>
+    {/if}
 
-  {#if error}
-    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 my-8">
-      <h2 class="text-2xl font-semibold text-red-700 dark:text-red-400 mb-2">Error</h2>
-      <p class="text-red-600 dark:text-red-300">{error}</p>
-    </div>
-  {/if}
-
-  {#if report}
-    <ReportViewer {report} {usedTestCertificates} />
-  {/if}
+    {#if report}
+      <ReportViewer {report} {usedTestCertificates} />
+    {/if}
+  </div>
 
   {#if !report && !processing}
     <!-- Footer Information -->
