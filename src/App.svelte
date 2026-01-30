@@ -12,6 +12,7 @@
   let globalDragOver = false
   let testCertificates: string[] = []
   let usedTestCertificates = false
+  let selectedFile: File | null = null
 
   // Test trust list fetching on component mount
   onMount(async () => {
@@ -39,13 +40,21 @@
       }
     }
 
+    // Handle file-selected event from ReportViewer
+    const handleFileSelectedEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<File>
+      handleFileSelect({ detail: customEvent.detail } as CustomEvent<File>)
+    }
+
     window.addEventListener('dragover', preventDefaults, false)
     window.addEventListener('drop', handleWindowDrop, false)
+    window.addEventListener('file-selected', handleFileSelectedEvent as EventListener)
 
     // Cleanup
     return () => {
       window.removeEventListener('dragover', preventDefaults, false)
       window.removeEventListener('drop', handleWindowDrop, false)
+      window.removeEventListener('file-selected', handleFileSelectedEvent as EventListener)
     }
   })
 
@@ -56,6 +65,7 @@
     processing = true
     error = null
     report = null
+    selectedFile = file
     usedTestCertificates = testCertificates.length > 0
 
     try {
@@ -117,6 +127,7 @@
     report = null
     error = null
     processing = false
+    selectedFile = null
   }
 </script>
 
@@ -140,32 +151,29 @@
   <!-- Navigation Bar (always shown) -->
   <nav class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 mb-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between h-16">
-        <!-- Logo and Title -->
-        <button
-          on:click={resetToHome}
-          class="flex items-center gap-3 hover:opacity-80 transition-opacity bg-transparent border-none p-0 cursor-pointer"
-          class:cursor-default={!report && !processing}
-          class:hover:opacity-100={!report && !processing}
-          disabled={!report && !processing}
-          aria-label={report || processing ? "Return to home" : "C2PA Verify"}
-        >
-          <div class="flex items-center gap-2">
-            <img src="/content_credentials_icon.svg" alt="Content Credentials" class="h-8 w-auto" />
-            <img src="/c2pa_icon.svg" alt="C2PA" class="h-8 w-auto" />
-          </div>
-          <div class="hidden sm:block">
-            <h1 class="text-xl font-bold text-gray-900 dark:text-white">C2PA Verify</h1>
-          </div>
-        </button>
-
-        <!-- Actions -->
-        <div class="flex items-center gap-4">
-          {#if report || processing}
-            <FileUpload on:fileselect={handleFileSelect} compact={true} />
-          {/if}
+      <button
+        on:click={resetToHome}
+        class="grid grid-cols-3 items-center h-16 gap-4 w-full bg-transparent border-none p-0 cursor-pointer hover:opacity-80 transition-opacity text-left"
+        class:cursor-default={!report && !processing}
+        class:hover:opacity-100={!report && !processing}
+        disabled={!report && !processing}
+        aria-label={report || processing ? "Return to home" : "C2PA Verify"}
+      >
+        <!-- Left: Content Credentials Logo -->
+        <div class="flex items-center justify-start">
+          <img src="/content_credentials_icon.svg" alt="Content Credentials" class="h-8 w-auto" />
         </div>
-      </div>
+
+        <!-- Center: Title -->
+        <div class="flex items-center justify-center">
+          <h1 class="text-xl font-bold text-gray-900 dark:text-white text-center">C2PA Verify</h1>
+        </div>
+
+        <!-- Right: C2PA Logo -->
+        <div class="flex items-center justify-end">
+          <img src="/c2pa_icon.svg" alt="C2PA" class="h-8 w-auto" />
+        </div>
+      </button>
     </div>
   </nav>
 
@@ -243,7 +251,7 @@
     {/if}
 
     {#if report}
-      <ReportViewer {report} {usedTestCertificates} />
+      <ReportViewer {report} {usedTestCertificates} file={selectedFile} />
     {/if}
   </div>
 
@@ -271,11 +279,6 @@
             <li>
               <a href="https://c2pa.org/conformance" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">
                 Conformance Program →
-              </a>
-            </li>
-            <li>
-              <a href="https://contentauthenticity.org" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">
-                Content Authenticity Initiative →
               </a>
             </li>
           </ul>

@@ -1,8 +1,37 @@
 <script lang="ts">
+  import { createEventDispatcher } from 'svelte'
+
   export let report: any
   export let usedTestCertificates = false
+  export let file: File | null = null
+
+  const dispatch = createEventDispatcher<{ newfile: void }>()
 
   let showRaw = false
+  let mediaUrl: string | null = null
+  let mediaType: 'image' | 'video' | 'audio' | 'document' | 'unknown' = 'unknown'
+  let fileInput: HTMLInputElement
+
+  // Create object URL for media preview
+  $: if (file) {
+    if (mediaUrl) {
+      URL.revokeObjectURL(mediaUrl)
+    }
+    mediaUrl = URL.createObjectURL(file)
+
+    // Determine media type
+    if (file.type.startsWith('image/')) {
+      mediaType = 'image'
+    } else if (file.type.startsWith('video/')) {
+      mediaType = 'video'
+    } else if (file.type.startsWith('audio/')) {
+      mediaType = 'audio'
+    } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+      mediaType = 'document'
+    } else {
+      mediaType = 'unknown'
+    }
+  }
 
   // Get the active manifest object from the manifests map
   $: activeManifest = report.active_manifest && report.manifests
@@ -66,6 +95,20 @@
     const elided = elideValue(data)
     return JSON.stringify(elided, null, 2)
   }
+
+  function handleNewFile() {
+    fileInput?.click()
+  }
+
+  function handleFileInput(event: Event) {
+    const target = event.target as HTMLInputElement
+    const files = target.files
+    if (files && files.length > 0) {
+      dispatch('newfile')
+      // The file will be handled by the parent component through the FileUpload event
+      window.dispatchEvent(new CustomEvent('file-selected', { detail: files[0] }))
+    }
+  }
 </script>
 
 <div class="text-left mt-8">
@@ -90,8 +133,23 @@
       >
         Copy JSON
       </button>
+      <button
+        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+        on:click={handleNewFile}
+      >
+        📁 New File
+      </button>
     </div>
   </div>
+
+  <!-- Hidden file input -->
+  <input
+    bind:this={fileInput}
+    type="file"
+    on:change={handleFileInput}
+    accept="image/*,video/*,audio/*,.pdf"
+    class="hidden"
+  />
 
   {#if usedTestCertificates}
     <div class="mb-6 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-400 dark:border-amber-600 rounded-lg p-4">
@@ -110,6 +168,84 @@
   {#if showRaw}
     <pre class="bg-gray-900 dark:bg-gray-950 border border-gray-700 rounded-lg p-6 overflow-x-auto text-sm leading-relaxed text-gray-100">{JSON.stringify(report, null, 2)}</pre>
   {:else}
+    <!-- Media Preview and Validation Status -->
+    <div class="mb-6">
+      <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 shadow-sm">
+        <h3 class="text-xl font-semibold text-blue-600 dark:text-blue-400 mb-4 pb-3 border-b-2 border-blue-200 dark:border-blue-800">Media Preview</h3>
+
+        {#if file && mediaUrl}
+          <div class="flex flex-col gap-3">
+            <div class="text-sm text-gray-600 dark:text-gray-400">
+              <p><span class="font-semibold">File:</span> {file.name}</p>
+              <p><span class="font-semibold">Type:</span> {file.type || 'Unknown'}</p>
+              <p><span class="font-semibold">Size:</span> {(file.size / 1024 / 1024).toFixed(2)} MB</p>
+            </div>
+
+            <div class="mt-4 bg-gray-100 dark:bg-gray-900 rounded-lg p-4 flex items-center justify-center min-h-[300px]">
+              {#if mediaType === 'image'}
+                <img src={mediaUrl} alt="Preview" class="max-w-full max-h-[500px] object-contain rounded" />
+              {:else if mediaType === 'video'}
+                <video src={mediaUrl} controls class="max-w-full max-h-[500px] rounded">
+                  <track kind="captions" />
+                  Your browser does not support video playback.
+                </video>
+              {:else if mediaType === 'audio'}
+                <div class="w-full">
+                  <div class="text-6xl text-center mb-4 text-gray-400">🎵</div>
+                  <audio src={mediaUrl} controls class="w-full">
+                    Your browser does not support audio playback.
+                  </audio>
+                </div>
+              {:else if mediaType === 'document'}
+                <div class="text-center">
+                  <div class="text-6xl mb-4 text-gray-400">📄</div>
+                  <p class="text-gray-600 dark:text-gray-400">PDF Document</p>
+                  <a href={mediaUrl} download={file.name} class="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Download PDF
+                  </a>
+                </div>
+              {:else}
+                <div class="text-center">
+                  <div class="text-6xl mb-4 text-gray-400">📦</div>
+                  <p class="text-gray-600 dark:text-gray-400">Preview not available</p>
+                </div>
+              {/if}
+            </div>
+          </div>
+        {:else}
+          <div class="text-center py-12 text-gray-500 dark:text-gray-400">
+            <div class="text-6xl mb-4">📁</div>
+            <p>No media file available</p>
+          </div>
+        {/if}
+
+        <!-- Validation Status (below media preview) -->
+        {#if report.validation_status && report.validation_status.length > 0}
+          <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <h4 class="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-3">Validation Status</h4>
+            <div class="space-y-3">
+              {#each report.validation_status as status}
+                <div class={`rounded-lg p-4 border ${
+                  status.success
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                }`}>
+                  <strong class="text-gray-900 dark:text-gray-100">{status.code}</strong>
+                  {#if status.explanation}
+                    <p class={`mt-1 text-sm ${
+                      status.success
+                        ? 'text-green-700 dark:text-green-300'
+                        : 'text-red-700 dark:text-red-300'
+                    }`}>{status.explanation}</p>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      </div>
+    </div>
+
     <div class="space-y-6">
       {#if activeManifest}
         {#if activeManifest.signature_info}
@@ -219,29 +355,6 @@
           </section>
         {/if}
 
-        {#if report.validation_status && report.validation_status.length > 0}
-          <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 shadow-sm">
-            <h3 class="text-xl font-semibold text-blue-600 dark:text-blue-400 mb-4 pb-3 border-b-2 border-blue-200 dark:border-blue-800">Validation Status</h3>
-            <div class="space-y-3">
-              {#each report.validation_status as status}
-                <div class={`rounded-lg p-4 border ${
-                  status.success
-                    ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-                }`}>
-                  <strong class="text-gray-900 dark:text-gray-100">{status.code}</strong>
-                  {#if status.explanation}
-                    <p class={`mt-1 text-sm ${
-                      status.success
-                        ? 'text-green-700 dark:text-green-300'
-                        : 'text-red-700 dark:text-red-300'
-                    }`}>{status.explanation}</p>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          </section>
-        {/if}
       {:else}
         <p class="text-center text-gray-500 dark:text-gray-400 py-8">No active manifest found in this file.</p>
       {/if}
