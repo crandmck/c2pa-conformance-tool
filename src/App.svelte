@@ -294,6 +294,26 @@
         </div>
       </div>
 
+      {#if error}
+        <div class="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-2 border-red-300 dark:border-red-700 rounded-2xl p-8 mb-10 shadow-lg text-left">
+          <div class="flex items-start gap-4">
+            <div class="flex-shrink-0 w-12 h-12 bg-red-600 dark:bg-red-500 rounded-full flex items-center justify-center text-white text-2xl">
+              ⚠
+            </div>
+            <div class="flex-1">
+              <h2 class="text-2xl font-bold text-red-700 dark:text-red-400 mb-3">Error Processing File</h2>
+              <p class="text-red-600 dark:text-red-300 leading-relaxed mb-4">{error}</p>
+              <button
+                on:click={resetToHome}
+                class="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 font-semibold shadow-md hover:shadow-lg"
+              >
+                Try Another File
+              </button>
+            </div>
+          </div>
+        </div>
+      {/if}
+
       <!-- Upload Area -->
       <div class="mb-10">
         <FileUpload on:fileselect={handleFileSelect} compact={false} />
@@ -329,26 +349,6 @@
         <div class="text-center">
           <p class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Processing file...</p>
           <p class="text-sm text-gray-600 dark:text-gray-400">Validating C2PA manifest and signatures</p>
-        </div>
-      </div>
-    {/if}
-
-    {#if error}
-      <div class="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-2 border-red-300 dark:border-red-700 rounded-2xl p-8 my-8 shadow-lg">
-        <div class="flex items-start gap-4">
-          <div class="flex-shrink-0 w-12 h-12 bg-red-600 dark:bg-red-500 rounded-full flex items-center justify-center text-white text-2xl">
-            ⚠
-          </div>
-          <div class="flex-1">
-            <h2 class="text-2xl font-bold text-red-700 dark:text-red-400 mb-3">Error Processing File</h2>
-            <p class="text-red-600 dark:text-red-300 leading-relaxed">{error}</p>
-            <button
-              on:click={resetToHome}
-              class="mt-4 px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 font-medium"
-            >
-              Try Another File
-            </button>
-          </div>
         </div>
       </div>
     {/if}
