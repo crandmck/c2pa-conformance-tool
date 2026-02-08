@@ -254,9 +254,17 @@
 
   async function enableTestMode() {
     try {
+      console.log('🔍 Fetching test root certificate from /test-certs/test-root-cert.pem')
       const response = await fetch('/test-certs/test-root-cert.pem')
-      if (!response.ok) throw new Error('Failed to load test root certificate')
+      console.log('📡 Response status:', response.status, response.statusText)
+
+      if (!response.ok) {
+        throw new Error(`Failed to load test root certificate: ${response.status} ${response.statusText}`)
+      }
+
       const rootCert = await response.text()
+      console.log('📄 Certificate loaded, length:', rootCert.length, 'chars')
+      console.log('📄 Certificate preview:', rootCert.substring(0, 100))
 
       testCertificates = [rootCert, ...testCertificates]
       testModeEnabled = true
@@ -265,8 +273,8 @@
       dispatch('testModeChanged', { enabled: true, rootLoaded: true })
       console.log('✅ Test mode enabled - test root certificate loaded')
     } catch (err) {
-      console.error('Failed to enable test mode:', err)
-      alert('Failed to load test root certificate')
+      console.error('❌ Failed to enable test mode:', err)
+      alert(`Failed to load test root certificate: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
@@ -284,20 +292,19 @@
 
   async function downloadTestSigningCert() {
     try {
-      const response = await fetch('/test-certs/test-signing-bundle.pem')
+      const response = await fetch('/test-certs/test-signing-bundle.zip')
       if (!response.ok) throw new Error('Failed to download test signing certificate')
-      const bundle = await response.text()
+      const zipBlob = await response.blob()
 
-      const blob = new Blob([bundle], { type: 'application/x-pem-file' })
-      const url = URL.createObjectURL(blob)
+      const url = URL.createObjectURL(zipBlob)
       const a = document.createElement('a')
       a.href = url
-      a.download = 'c2pa-test-signing-bundle.pem'
+      a.download = 'c2pa-test-signing-bundle.zip'
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      console.log('✅ Test signing certificate downloaded')
+      console.log('✅ Test signing certificate bundle downloaded (ZIP)')
     } catch (err) {
       console.error('Failed to download test signing certificate:', err)
       alert('Failed to download test signing certificate')
@@ -369,7 +376,7 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            Download Signing Cert
+            Download Signing Cert (ZIP)
           </button>
         {/if}
       </div>

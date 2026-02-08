@@ -42,6 +42,11 @@ public/c2pa.wasm
 # Claude Code
 .claude
 
-# Test certificates
-test-certs/
+# Test certificates (but allow specific files for distribution)
+public/test-certs/*.pem
+public/test-certs/*.key
+public/test-certs/*.cnf
+public/test-certs/*.csr
+public/test-certs/*.srl
+public/test-certs/README.md
 test-cert.pem
