@@ -2,13 +2,5 @@
   command = "npm run build"
   publish = "dist"
 
-# Catch-all redirect for SPA routing
-# Force false prevents redirecting files that exist
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  force = false
-
 [build.environment]
   NODE_VERSION = "20"
