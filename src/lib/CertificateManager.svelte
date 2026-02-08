@@ -252,19 +252,26 @@
     fileInput.click()
   }
 
+  // Embedded C2PA test root certificate (avoids network fetch issues)
+  const TEST_ROOT_CERT_PEM = `-----BEGIN CERTIFICATE-----
+MIICBTCCAaygAwIBAgIUUtIyu93JJmVhLMyrf/bsIavWFNAwCgYIKoZIzj0EAwIw
+RjEjMCEGA1UEAwwaQzJQQSBDb25mb3JtYW5jZSBUZXN0IFJvb3QxEjAQBgNVBAoM
+CUMyUEEgVGVzdDELMAkGA1UEBhMCVVMwHhcNMjYwMjA4MTYwMTE0WhcNMzYwMjA2
+MTYwMTE0WjBGMSMwIQYDVQQDDBpDMlBBIENvbmZvcm1hbmNlIFRlc3QgUm9vdDES
+MBAGA1UECgwJQzJQQSBUZXN0MQswCQYDVQQGEwJVUzBZMBMGByqGSM49AgEGCCqG
+SM49AwEHA0IABAvaFRB/XQHFjRuzNp3bjzAbA83Ky4mLGP+wea5NOlgb3BW5xIM2
+gUIUSR5S06YtHZI1fzabIgi1VStcO7Q1NJSjeDB2MA8GA1UdEwEB/wQFMAMBAf8w
+DgYDVR0PAQH/BAQDAgEGMB0GA1UdDgQWBBTPq5ZiRWulFSlnGo6SZSDgVFqODzAf
+BgNVHSMEGDAWgBTPq5ZiRWulFSlnGo6SZSDgVFqODzATBgNVHSUEDDAKBggrBgEF
+BQcDJDAKBggqhkjOPQQDAgNHADBEAiAH+KVmLpBx+Kovr4Rtr2tDgPP6iNobYBOa
+MCZvLxXCtwIgCxkR0Gbdwef8k0bf1tC3dz+4NDe0S8wdCx5ZgeRPkq4=
+-----END CERTIFICATE-----`
+
   async function enableTestMode() {
     try {
-      console.log('🔍 Fetching test root certificate from /test-certs/test-root-cert.pem')
-      const response = await fetch('/test-certs/test-root-cert.pem')
-      console.log('📡 Response status:', response.status, response.statusText)
-
-      if (!response.ok) {
-        throw new Error(`Failed to load test root certificate: ${response.status} ${response.statusText}`)
-      }
-
-      const rootCert = await response.text()
+      console.log('🔍 Loading embedded C2PA test root certificate')
+      const rootCert = TEST_ROOT_CERT_PEM.trim()
       console.log('📄 Certificate loaded, length:', rootCert.length, 'chars')
-      console.log('📄 Certificate preview:', rootCert.substring(0, 100))
 
       testCertificates = [rootCert, ...testCertificates]
       testModeEnabled = true
