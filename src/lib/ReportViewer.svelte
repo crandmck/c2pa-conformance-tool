@@ -21,6 +21,7 @@
   let fileInput: HTMLInputElement
   let validationStatus: any[] = []
   let expandedIngredients: Set<number> = new Set()
+  let expandedAssertions: Set<number> = new Set()
 
   function toggleIngredient(index: number) {
     if (expandedIngredients.has(index)) {
@@ -29,6 +30,15 @@
       expandedIngredients.add(index)
     }
     expandedIngredients = expandedIngredients // Trigger reactivity
+  }
+
+  function toggleAssertion(index: number) {
+    if (expandedAssertions.has(index)) {
+      expandedAssertions.delete(index)
+    } else {
+      expandedAssertions.add(index)
+    }
+    expandedAssertions = expandedAssertions // Trigger reactivity
   }
 
   // Get ingredient manifest from the manifests map
@@ -185,6 +195,138 @@
   function formatAssertionData(data: any): string {
     const elided = elideValue(data)
     return JSON.stringify(elided, null, 2)
+  }
+
+  // Extract key-value pairs from assertion data for display
+  function extractAssertionSummary(data: any): Array<{key: string, value: any}> {
+    if (!data || typeof data !== 'object') {
+      return []
+    }
+
+    const summary: Array<{key: string, value: any}> = []
+
+    // Extract top-level fields
+    for (const [key, value] of Object.entries(data)) {
+      // Skip undefined and null
+      if (typeof value === 'undefined' || value === null) {
+        continue
+      }
+
+      // For arrays
+      if (Array.isArray(value)) {
+        if (value.length === 0) {
+          continue // Skip empty arrays
+        }
+        // Check if we can extract meaningful values
+        const formatted = formatValue(value)
+        if (formatted !== '') {
+          summary.push({ key, value })
+        }
+      }
+      // For objects
+      else if (typeof value === 'object') {
+        const objKeys = Object.keys(value)
+        if (objKeys.length === 0) {
+          continue // Skip empty objects
+        }
+        // Check if we can extract meaningful values
+        const formatted = formatValue(value)
+        if (formatted !== '') {
+          summary.push({ key, value })
+        }
+      }
+      // For primitives
+      else {
+        const formatted = formatValue(value)
+        if (formatted !== '') {
+          summary.push({ key, value })
+        }
+      }
+    }
+
+    return summary.slice(0, 10) // Limit to first 10 fields
+  }
+
+  // Format a value for display
+  function formatValue(value: any): string {
+    if (value === null || value === undefined) {
+      return ''
+    }
+    if (typeof value === 'boolean') {
+      return value ? 'Yes' : 'No'
+    }
+    if (typeof value === 'object') {
+      if (Array.isArray(value)) {
+        // For arrays of objects, try to extract meaningful properties
+        if (value.length > 0 && typeof value[0] === 'object') {
+          const items = value.map(item => extractMeaningfulValue(item)).filter(s => s !== '')
+          return items.length > 0 ? items.join(', ') : ''
+        }
+        return value.length <= 3 ? value.join(', ') : `[${value.length} items]`
+      }
+      // For single objects, extract meaningful value
+      const extracted = extractMeaningfulValue(value)
+      return extracted !== '' ? extracted : ''
+    }
+    const str = String(value)
+    // Never return "[object Object]"
+    if (str === '[object Object]') {
+      return ''
+    }
+    // Truncate very long strings
+    return str.length > 100 ? str.substring(0, 97) + '...' : str
+  }
+
+  // Extract a meaningful string from an object
+  function extractMeaningfulValue(obj: any): string {
+    if (!obj || typeof obj !== 'object') {
+      const str = String(obj)
+      // Never return "[object Object]"
+      if (str === '[object Object]') {
+        return ''
+      }
+      return str
+    }
+
+    // Common patterns for C2PA assertions
+    const meaningfulKeys = [
+      'action', 'name', 'label', 'title', 'type', 'digitalSourceType',
+      'softwareAgent', 'when', 'reason', 'description', 'value', 'version'
+    ]
+
+    // Try to find a meaningful property
+    for (const key of meaningfulKeys) {
+      if (obj[key] !== undefined && obj[key] !== null) {
+        const value = obj[key]
+        // If the value is a simple type, return it
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+          return String(value)
+        }
+      }
+    }
+
+    // For actions, try to get action type
+    if (obj.action) {
+      return String(obj.action)
+    }
+
+    // If we have just a few keys with simple values, show them
+    const keys = Object.keys(obj)
+    if (keys.length > 0 && keys.length <= 3) {
+      const simpleEntries = keys
+        .filter(k => {
+          const v = obj[k]
+          return typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
+        })
+        .map(k => `${k}: ${obj[k]}`)
+
+      if (simpleEntries.length > 0) {
+        return simpleEntries.join(', ')
+      }
+    }
+
+    // Don't show anything if we can't extract meaningful data
+    return ''
   }
 
   function handleNewFile() {
@@ -509,15 +651,62 @@
             </div>
             <div class="space-y-4">
               {#each activeManifest.assertions as assertion, index}
+                {@const isExpanded = expandedAssertions.has(index)}
+                {@const summary = assertion.data ? extractAssertionSummary(assertion.data) : []}
                 <div class="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900/50 dark:to-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 transition-colors">
                   <div class="flex items-start gap-3 mb-3">
                     <div class="flex-shrink-0 w-8 h-8 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center text-purple-700 dark:text-purple-300 font-bold text-sm">
                       {index + 1}
                     </div>
-                    <p class="flex-1 font-bold text-gray-900 dark:text-gray-100 text-lg">{assertion.label || assertion.url || 'Unknown'}</p>
+                    <div class="flex-1">
+                      <p class="font-bold text-gray-900 dark:text-gray-100 text-lg">{assertion.label || assertion.url || 'Unknown'}</p>
+                      {#if assertion.data}
+                        <button
+                          on:click={() => toggleAssertion(index)}
+                          class="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
+                        >
+                          <svg class="w-3 h-3 transition-transform {isExpanded ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                          </svg>
+                          {isExpanded ? 'Hide' : 'Show'} raw data
+                        </button>
+                      {/if}
+                    </div>
                   </div>
+
                   {#if assertion.data}
-                    <pre class="bg-gray-900 dark:bg-black/50 p-4 rounded-lg text-xs overflow-x-auto text-gray-100 dark:text-gray-300 border border-gray-700 leading-relaxed">{formatAssertionData(assertion.data)}</pre>
+                    <div class="ml-11">
+                      {#if summary.length > 0}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                          {#each summary as item}
+                            <div class="bg-white dark:bg-gray-800 rounded-lg p-3">
+                              <div class="text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wide mb-1">
+                                {item.key}
+                              </div>
+                              <div class="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
+                                {#if typeof item.value === 'object'}
+                                  <pre class="text-xs font-mono">{formatValue(item.value)}</pre>
+                                {:else}
+                                  {formatValue(item.value)}
+                                {/if}
+                              </div>
+                            </div>
+                          {/each}
+                        </div>
+                      {/if}
+
+                      {#if isExpanded}
+                        <div class="mt-3 animate-fade-in">
+                          <div class="flex items-center gap-2 mb-2">
+                            <svg class="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                            </svg>
+                            <span class="text-xs font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wide">Complete Data</span>
+                          </div>
+                          <pre class="bg-gray-900 dark:bg-black/50 p-4 rounded-lg text-xs overflow-x-auto text-gray-100 dark:text-gray-300 border border-gray-700 leading-relaxed">{formatAssertionData(assertion.data)}</pre>
+                        </div>
+                      {/if}
+                    </div>
                   {/if}
                 </div>
               {/each}
