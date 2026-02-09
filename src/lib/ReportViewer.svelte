@@ -197,16 +197,56 @@
     return JSON.stringify(elided, null, 2)
   }
 
+  // Get abbreviated digital source type (last part of URL)
+  function getAbbreviatedSourceType(url: string): string {
+    if (!url) return ''
+    const parts = url.split('/')
+    return parts[parts.length - 1] || url
+  }
+
   // Extract key-value pairs from assertion data for display
-  function extractAssertionSummary(data: any): Array<{key: string, value: any}> {
+  function extractAssertionSummary(data: any): Array<{key: string, value: any, digitalSourceType?: string, isAction?: boolean, actionName?: string, description?: string}> {
     if (!data || typeof data !== 'object') {
       return []
     }
 
-    const summary: Array<{key: string, value: any}> = []
+    const summary: Array<{key: string, value: any, digitalSourceType?: string}> = []
 
-    // Extract top-level fields
+    // Handle actions specially - show each action separately with specific fields
+    if (data.actions && Array.isArray(data.actions) && data.actions.length > 0) {
+      data.actions.forEach((action: any, index: number) => {
+        // For actions, we want to show specific fields rather than using generic extraction
+        const actionName = action.action || extractMeaningfulValue(action)
+        if (actionName !== '') {
+          // Get digitalSourceType from the action itself, or fall back to top-level
+          const digitalSourceType = action.digitalSourceType || data.digitalSourceType
+          const description = action.description
+
+          const item = {
+            key: data.actions.length > 1 ? `action ${index + 1}` : 'action',
+            value: action,
+            digitalSourceType: digitalSourceType,
+            isAction: true,
+            actionName: actionName,
+            description: description
+          }
+          summary.push(item)
+        }
+      })
+    }
+
+    // Add digitalSourceType separately only if there are no actions and it exists at top level
+    if (!data.actions && data.digitalSourceType) {
+      summary.push({ key: 'digitalSourceType', value: data.digitalSourceType })
+    }
+
+    // Extract remaining top-level fields
     for (const [key, value] of Object.entries(data)) {
+      // Skip actions and digitalSourceType as we handled them above
+      if (key === 'actions' || key === 'digitalSourceType') {
+        continue
+      }
+
       // Skip undefined and null
       if (typeof value === 'undefined' || value === null) {
         continue
@@ -244,7 +284,7 @@
       }
     }
 
-    return summary.slice(0, 10) // Limit to first 10 fields
+    return summary.slice(0, 15) // Increased limit to accommodate multiple actions
   }
 
   // Format a value for display
@@ -680,16 +720,54 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                           {#each summary as item}
                             <div class="bg-white dark:bg-gray-800 rounded-lg p-3">
-                              <div class="text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wide mb-1">
-                                {item.key}
-                              </div>
-                              <div class="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
-                                {#if typeof item.value === 'object'}
-                                  <pre class="text-xs font-mono">{formatValue(item.value)}</pre>
-                                {:else}
+                              {#if item.isAction}
+                                <!-- Special display for actions -->
+                                <div class="space-y-2">
+                                  <div>
+                                    <div class="text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wide mb-1">
+                                      {item.key}
+                                    </div>
+                                    <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                      {item.actionName}
+                                    </div>
+                                  </div>
+
+                                  {#if item.digitalSourceType}
+                                    <div>
+                                      <div class="text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wide mb-1">
+                                        Digital Source Type
+                                      </div>
+                                      <a
+                                        href={item.digitalSourceType}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="text-sm font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 underline"
+                                      >
+                                        {getAbbreviatedSourceType(item.digitalSourceType)}
+                                      </a>
+                                    </div>
+                                  {/if}
+
+                                  {#if item.description}
+                                    <div>
+                                      <div class="text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wide mb-1">
+                                        Description
+                                      </div>
+                                      <div class="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
+                                        {item.description}
+                                      </div>
+                                    </div>
+                                  {/if}
+                                </div>
+                              {:else}
+                                <!-- Standard display for other fields -->
+                                <div class="text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wide mb-1">
+                                  {item.key}
+                                </div>
+                                <div class="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
                                   {formatValue(item.value)}
-                                {/if}
-                              </div>
+                                </div>
+                              {/if}
                             </div>
                           {/each}
                         </div>
