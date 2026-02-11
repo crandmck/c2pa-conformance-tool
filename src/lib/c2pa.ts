@@ -21,9 +21,21 @@ async function fetchMainTrustList(): Promise<string> {
   }
 
   try {
+    const [trustListResponse, tsaTrustListResponse] = await Promise.all([
+      fetch(TRUST_LIST_URL),
+      fetch(TSA_TRUST_LIST_URL)
+    ])
+
+    if (!trustListResponse.ok) {
+      throw new Error(`Failed to fetch C2PA trust list: ${trustListResponse.status} ${trustListResponse.statusText}`)
+    }
+    if (!tsaTrustListResponse.ok) {
+      throw new Error(`Failed to fetch TSA trust list: ${tsaTrustListResponse.status} ${tsaTrustListResponse.statusText}`)
+    }
+
     const [trustList, tsaTrustList] = await Promise.all([
-      fetch(TRUST_LIST_URL).then(r => r.text()),
-      fetch(TSA_TRUST_LIST_URL).then(r => r.text())
+      trustListResponse.text(),
+      tsaTrustListResponse.text()
     ])
 
     mainTrustListPem = trustList + '\n' + tsaTrustList
@@ -47,9 +59,21 @@ async function fetchITL(): Promise<string> {
   }
 
   try {
+    const [allowedResponse, anchorsResponse] = await Promise.all([
+      fetch(ITL_ALLOWED_URL),
+      fetch(ITL_ANCHORS_URL)
+    ])
+
+    if (!allowedResponse.ok) {
+      throw new Error(`Failed to fetch ITL allowed.pem: ${allowedResponse.status} ${allowedResponse.statusText}`)
+    }
+    if (!anchorsResponse.ok) {
+      throw new Error(`Failed to fetch ITL anchors.pem: ${anchorsResponse.status} ${anchorsResponse.statusText}`)
+    }
+
     const [allowed, anchors] = await Promise.all([
-      fetch(ITL_ALLOWED_URL).then(r => r.text()),
-      fetch(ITL_ANCHORS_URL).then(r => r.text())
+      allowedResponse.text(),
+      anchorsResponse.text()
     ])
 
     itlTrustListPem = allowed + '\n' + anchors

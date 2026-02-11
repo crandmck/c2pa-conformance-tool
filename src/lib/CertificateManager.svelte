@@ -229,6 +229,11 @@
       }
     }
 
+    reader.onerror = () => {
+      console.error('Failed to read certificate file:', reader.error)
+      alert('Failed to read certificate file. Please try again.')
+    }
+
     reader.readAsText(file)
     input.value = '' // Reset input
   }
