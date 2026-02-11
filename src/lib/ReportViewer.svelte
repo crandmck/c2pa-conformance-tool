@@ -114,27 +114,39 @@
       status.code === 'signingCredential.trusted'
     )
 
+  // Check if signature is using Interim Trust List
+  // We use the usedITL flag from the manifest store
+  $: usedITL = (report as any)?.usedITL === true
+
   // Build validation status array - show key validation results from success and failure
   $: {
     const successStatuses = validationResults?.success?.filter((status: any) =>
       status.code === 'signingCredential.trusted' ||
       status.code === 'timeStamp.trusted' ||
       status.code === 'claimSignature.validated'
-    ).map((status: any) => ({
-      code: status.code,
-      success: true,
-      explanation: status.explanation || 'Validation passed'
-    })) || []
+    ).map((status: any) => {
+      // Mark as ITL if trusted via ITL (usedITL flag is true)
+      const isInterim = status.code === 'signingCredential.trusted' && usedITL
+      return {
+        code: status.code,
+        success: true,
+        isInterim: isInterim,
+        explanation: status.explanation || 'Validation passed'
+      }
+    }) || []
 
     const failureStatuses = validationResults?.failure?.filter((status: any) =>
       status.code === 'signingCredential.untrusted' ||
       status.code === 'timeStamp.untrusted' ||
       status.code === 'claimSignature.invalid'
-    ).map((status: any) => ({
-      code: status.code,
-      success: false,
-      explanation: status.explanation || 'Validation failed'
-    })) || []
+    ).map((status: any) => {
+      return {
+        code: status.code,
+        success: false,
+        isInterim: false,
+        explanation: status.explanation || 'Validation failed'
+      }
+    }) || []
 
     validationStatus = [...successStatuses, ...failureStatuses]
   }
@@ -562,23 +574,36 @@
             <div class="space-y-3">
               {#each validationStatus as status}
                 <div class={`rounded-xl p-5 border-2 transition-all duration-200 hover:shadow-md ${
-                  status.success
-                    ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-300 dark:border-green-700'
-                    : 'bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-red-300 dark:border-red-700'
+                  status.isInterim
+                    ? 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-400 dark:border-yellow-600'
+                    : status.success
+                      ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-300 dark:border-green-700'
+                      : 'bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-red-300 dark:border-red-700'
                 }`}>
                   <div class="flex items-start gap-3">
                     <div class={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                      status.success ? 'bg-green-600 dark:bg-green-500' : 'bg-red-600 dark:bg-red-500'
+                      status.isInterim
+                        ? 'bg-yellow-600 dark:bg-yellow-500'
+                        : status.success
+                          ? 'bg-green-600 dark:bg-green-500'
+                          : 'bg-red-600 dark:bg-red-500'
                     }`}>
-                      {status.success ? '✓' : '✕'}
+                      {status.isInterim ? '⚠' : status.success ? '✓' : '✕'}
                     </div>
                     <div class="flex-1">
-                      <p class="font-bold text-gray-900 dark:text-gray-100 mb-1">{status.code}</p>
+                      <p class="font-bold text-gray-900 dark:text-gray-100 mb-1">
+                        {status.code}
+                        {#if status.isInterim}
+                          <span class="ml-2 px-2 py-0.5 bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 text-xs font-semibold rounded">ITL</span>
+                        {/if}
+                      </p>
                       {#if status.explanation}
                         <p class={`text-sm leading-relaxed ${
-                          status.success
-                            ? 'text-green-800 dark:text-green-300'
-                            : 'text-red-800 dark:text-red-300'
+                          status.isInterim
+                            ? 'text-yellow-800 dark:text-yellow-300'
+                            : status.success
+                              ? 'text-green-800 dark:text-green-300'
+                              : 'text-red-800 dark:text-red-300'
                         }`}>{status.explanation}</p>
                       {/if}
                     </div>

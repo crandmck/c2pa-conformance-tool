@@ -2,18 +2,22 @@ import { createC2pa } from '@contentauth/c2pa-web'
 import type { C2paSdk, ManifestStore, SettingsContext } from '@contentauth/c2pa-web'
 
 let c2paInstance: C2paSdk | null = null
-let trustListPem: string | null = null
+let mainTrustListPem: string | null = null
+let itlTrustListPem: string | null = null
 
 // Official C2PA trust list URLs
 const TRUST_LIST_URL = 'https://raw.githubusercontent.com/c2pa-org/conformance-public/main/trust-list/C2PA-TRUST-LIST.pem'
 const TSA_TRUST_LIST_URL = 'https://raw.githubusercontent.com/c2pa-org/conformance-public/main/trust-list/C2PA-TSA-TRUST-LIST.pem'
+// ITL (Interim Trust List) - stored locally, consists of two files
+const ITL_ALLOWED_URL = '/trust/allowed.pem'  // leaf certificates
+const ITL_ANCHORS_URL = '/trust/anchors.pem'  // root certificates
 
 /**
- * Fetch and combine the official C2PA trust lists
+ * Fetch the main C2PA trust lists (without ITL)
  */
-async function fetchTrustLists(): Promise<string> {
-  if (trustListPem) {
-    return trustListPem
+async function fetchMainTrustList(): Promise<string> {
+  if (mainTrustListPem) {
+    return mainTrustListPem
   }
 
   try {
@@ -22,12 +26,38 @@ async function fetchTrustLists(): Promise<string> {
       fetch(TSA_TRUST_LIST_URL).then(r => r.text())
     ])
 
-    // Combine both trust lists
-    trustListPem = trustList + '\n' + tsaTrustList
-    return trustListPem
+    mainTrustListPem = trustList + '\n' + tsaTrustList
+    console.log('✅ Loaded main trust lists')
+    return mainTrustListPem
   } catch (error) {
-    console.error('Failed to fetch trust lists:', error)
+    console.error('Failed to fetch main trust lists:', error)
     throw new Error('Failed to fetch C2PA trust lists')
+  }
+}
+
+/**
+ * Fetch the ITL (Interim Trust List)
+ * The ITL consists of two files that need to be merged:
+ * - allowed.pem: leaf certificates
+ * - anchors.pem: root certificates
+ */
+async function fetchITL(): Promise<string> {
+  if (itlTrustListPem) {
+    return itlTrustListPem
+  }
+
+  try {
+    const [allowed, anchors] = await Promise.all([
+      fetch(ITL_ALLOWED_URL).then(r => r.text()),
+      fetch(ITL_ANCHORS_URL).then(r => r.text())
+    ])
+
+    itlTrustListPem = allowed + '\n' + anchors
+    console.log('✅ Loaded ITL (Interim Trust List) - merged allowed.pem and anchors.pem')
+    return itlTrustListPem
+  } catch (error) {
+    console.error('Failed to fetch ITL:', error)
+    throw new Error('Failed to fetch ITL')
   }
 }
 
@@ -52,11 +82,11 @@ async function initC2pa(): Promise<C2paSdk> {
 }
 
 /**
- * Process a file and return a C2PA conformance report
+ * Process a file and return a C2PA conformance report with ITL detection
  * @param file The file to process
  * @param testCertificates Optional array of test certificates (PEM format) to add to trust list
  */
-export async function processFile(file: File, testCertificates: string[] = []): Promise<ManifestStore> {
+export async function processFile(file: File, testCertificates: string[] = []): Promise<ManifestStore & { usedITL?: boolean }> {
   console.log('🔍 Starting file processing for:', file.name, 'Type:', file.type)
 
   // Initialize C2PA SDK if not already initialized
@@ -67,48 +97,112 @@ export async function processFile(file: File, testCertificates: string[] = []): 
   try {
     console.log('Fetching official C2PA trust lists...')
 
-    // Fetch and concatenate the trust lists into a single string
-    let trustAnchors = await fetchTrustLists()
-    console.log('✅ Trust anchors fetched, length:', trustAnchors.length)
+    // Fetch main trust list and ITL separately
+    const [mainTrustList, itl] = await Promise.all([
+      fetchMainTrustList(),
+      fetchITL()
+    ])
 
     // Add test certificates if provided
+    let trustAnchors = mainTrustList
     if (testCertificates.length > 0) {
       console.log('⚠️  Adding', testCertificates.length, 'test certificate(s) to trust list')
       trustAnchors = trustAnchors + '\n' + testCertificates.join('\n')
     }
 
-    console.log('Configuring C2PA trust verification (official trust list only)...')
-    const settings: SettingsContext = {
+    console.log('Step 1: Validating with main trust list...')
+    const mainSettings: SettingsContext = {
       verify: {
         verifyTrust: true,
         verifyAfterReading: true
       },
       trust: {
-        trustAnchors // Official C2PA trust list as a single PEM string
+        trustAnchors
       }
     }
 
-    console.log('Creating reader with trust settings...')
-
-    // Create a reader from the file blob
-    const reader = await c2pa.reader.fromBlob(file.type, file, settings)
-
-    if (!reader) {
+    // First validation with main trust list
+    const reader1 = await c2pa.reader.fromBlob(file.type, file, mainSettings)
+    if (!reader1) {
       throw new Error('No C2PA manifest found in this file')
     }
 
-    console.log('✅ Reader created successfully with trust verification enabled')
+    const manifestStore = await reader1.manifestStore()
+    await reader1.free()
 
-    // Get the manifest store
-    console.log('Retrieving manifest store...')
-    const manifestStore = await reader.manifestStore()
+    // Check if signature is untrusted
+    const isUntrusted = manifestStore.validation_results?.activeManifest?.failure?.some(
+      (status: any) => status.code === 'signingCredential.untrusted'
+    )
 
-    console.log('✅ Manifest store retrieved with trust validation:', manifestStore)
+    console.log('Main validation results:', {
+      isUntrusted,
+      success: manifestStore.validation_results?.activeManifest?.success?.map((s: any) => s.code),
+      failure: manifestStore.validation_results?.activeManifest?.failure?.map((f: any) => f.code)
+    })
 
-    // Clean up the reader
-    await reader.free()
+    let usedITL = false
+    let finalManifestStore = manifestStore
 
-    return manifestStore
+    if (isUntrusted) {
+      console.log('⚠️  Signature untrusted on main list, checking ITL...')
+
+      // Try with ITL included
+      const itlSettings: SettingsContext = {
+        verify: {
+          verifyTrust: true,
+          verifyAfterReading: true
+        },
+        trust: {
+          trustAnchors: trustAnchors + '\n' + itl
+        }
+      }
+
+      const reader2 = await c2pa.reader.fromBlob(file.type, file, itlSettings)
+      if (reader2) {
+        const itlManifestStore = await reader2.manifestStore()
+        await reader2.free()
+
+        console.log('ITL validation results:', {
+          success: itlManifestStore.validation_results?.activeManifest?.success?.map((s: any) => s.code),
+          failure: itlManifestStore.validation_results?.activeManifest?.failure?.map((f: any) => ({
+            code: f.code,
+            explanation: f.explanation
+          }))
+        })
+
+        // Check if ITL validation succeeded
+        const itlTrusted = itlManifestStore.validation_results?.activeManifest?.success?.some(
+          (status: any) => status.code === 'signingCredential.trusted'
+        )
+
+        const itlStillUntrusted = itlManifestStore.validation_results?.activeManifest?.failure?.some(
+          (status: any) => status.code === 'signingCredential.untrusted'
+        )
+
+        console.log('ITL validation check:', { itlTrusted, itlStillUntrusted })
+
+        // Log the untrusted failure details
+        const untrustedFailure = itlManifestStore.validation_results?.activeManifest?.failure?.find(
+          (status: any) => status.code === 'signingCredential.untrusted'
+        )
+        if (untrustedFailure) {
+          console.log('ITL still untrusted, reason:', untrustedFailure.explanation)
+        }
+
+        if (itlTrusted && !itlStillUntrusted) {
+          console.log('✅ Signature validated by ITL')
+          usedITL = true
+          finalManifestStore = itlManifestStore
+        } else {
+          console.log('❌ Signature still not trusted even with ITL')
+        }
+      }
+    }
+
+    console.log('✅ Manifest store retrieved with trust validation')
+
+    return { ...finalManifestStore, usedITL }
   } catch (error) {
     console.error('❌ Error in processFile:', error)
     if (error instanceof Error) {
