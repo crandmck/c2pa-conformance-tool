@@ -1,6 +1,8 @@
 import { createC2pa } from '@contentauth/c2pa-web'
-import type { C2paSdk, ManifestStore, SettingsContext } from '@contentauth/c2pa-web'
+import type { C2paSdk, SettingsContext, ValidationStatus } from '@contentauth/c2pa-web'
 import { VERSION_INFO } from './version'
+import type { ConformanceReport } from './types'
+import { VALIDATION_STATUS } from './constants'
 
 let c2paInstance: C2paSdk | null = null
 let mainTrustListPem: string | null = null
@@ -111,7 +113,7 @@ async function initC2pa(): Promise<C2paSdk> {
  * @param file The file to process
  * @param testCertificates Optional array of test certificates (PEM format) to add to trust list
  */
-export async function processFile(file: File, testCertificates: string[] = []): Promise<ManifestStore & { usedITL?: boolean }> {
+export async function processFile(file: File, testCertificates: string[] = []): Promise<ConformanceReport> {
   console.log('🔍 Starting file processing for:', file.name, 'Type:', file.type)
 
   // Initialize C2PA SDK if not already initialized
@@ -157,13 +159,13 @@ export async function processFile(file: File, testCertificates: string[] = []): 
 
     // Check if signature is untrusted
     const isUntrusted = manifestStore.validation_results?.activeManifest?.failure?.some(
-      (status: any) => status.code === 'signingCredential.untrusted'
+      (status: ValidationStatus) => status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_UNTRUSTED
     )
 
     console.log('Main validation results:', {
       isUntrusted,
-      success: manifestStore.validation_results?.activeManifest?.success?.map((s: any) => s.code),
-      failure: manifestStore.validation_results?.activeManifest?.failure?.map((f: any) => f.code)
+      success: manifestStore.validation_results?.activeManifest?.success?.map((s: ValidationStatus) => s.code),
+      failure: manifestStore.validation_results?.activeManifest?.failure?.map((f: ValidationStatus) => f.code)
     })
 
     let usedITL = false
@@ -189,8 +191,8 @@ export async function processFile(file: File, testCertificates: string[] = []): 
         await reader2.free()
 
         console.log('ITL validation results:', {
-          success: itlManifestStore.validation_results?.activeManifest?.success?.map((s: any) => s.code),
-          failure: itlManifestStore.validation_results?.activeManifest?.failure?.map((f: any) => ({
+          success: itlManifestStore.validation_results?.activeManifest?.success?.map((s: ValidationStatus) => s.code),
+          failure: itlManifestStore.validation_results?.activeManifest?.failure?.map((f: ValidationStatus) => ({
             code: f.code,
             explanation: f.explanation
           }))
@@ -198,18 +200,18 @@ export async function processFile(file: File, testCertificates: string[] = []): 
 
         // Check if ITL validation succeeded
         const itlTrusted = itlManifestStore.validation_results?.activeManifest?.success?.some(
-          (status: any) => status.code === 'signingCredential.trusted'
+          (status: ValidationStatus) => status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_TRUSTED
         )
 
         const itlStillUntrusted = itlManifestStore.validation_results?.activeManifest?.failure?.some(
-          (status: any) => status.code === 'signingCredential.untrusted'
+          (status: ValidationStatus) => status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_UNTRUSTED
         )
 
         console.log('ITL validation check:', { itlTrusted, itlStillUntrusted })
 
         // Log the untrusted failure details
         const untrustedFailure = itlManifestStore.validation_results?.activeManifest?.failure?.find(
-          (status: any) => status.code === 'signingCredential.untrusted'
+          (status: ValidationStatus) => status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_UNTRUSTED
         )
         if (untrustedFailure) {
           console.log('ITL still untrusted, reason:', untrustedFailure.explanation)

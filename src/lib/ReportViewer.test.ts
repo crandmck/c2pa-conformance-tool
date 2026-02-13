@@ -5,19 +5,15 @@ import { describe, it, expect } from 'vitest'
  * These functions are extracted from the component for testing
  */
 
-// Utility function: elideValue
-// Truncates long hash values for display
-function elideValue(value: any, key?: string): any {
-  if (typeof value === 'string') {
-    // Check if it's a hash (long hex string)
-    if (key && (key.toLowerCase().includes('hash') || key.toLowerCase().includes('digest'))) {
-      if (value.length > 20) {
-        return value.substring(0, 10) + '...' + value.substring(value.length - 10)
+// Utility function: elideValue (test copy - simplified)
+function elideValue(value: unknown, key?: string): unknown {
+    if (typeof value === 'string') {
+      if (key && (key.toLowerCase().includes('hash') || key.toLowerCase().includes('digest'))) {
+        if (value.length > 20) {
+          return value.substring(0, 10) + '...' + value.substring(value.length - 10)
+        }
       }
-    }
-
-    // Check if the value itself looks like a hash (long hex string)
-    if (value.match(/^[a-f0-9]{40,}$/i)) {
+      if (/^[a-f0-9]{40,}$/i.test(value)) {
       return value.substring(0, 10) + '...' + value.substring(value.length - 10)
     }
 
@@ -47,9 +43,7 @@ function getAbbreviatedSourceType(url: string): string {
   return match ? match[1] : ''
 }
 
-// Utility function: formatValue
-// Formats values for display
-function formatValue(value: any): string {
+function formatValue(value: unknown): string {
   if (value === null || value === undefined) return 'N/A'
   if (typeof value === 'boolean') return value ? 'Yes' : 'No'
   if (typeof value === 'object') {
@@ -61,25 +55,19 @@ function formatValue(value: any): string {
   return String(value)
 }
 
-// Utility function: extractMeaningfulValue
-// Extracts meaningful values from complex objects
-function extractMeaningfulValue(obj: any): string {
+function extractMeaningfulValue(obj: unknown): string {
   if (!obj || typeof obj !== 'object') return String(obj)
-
-  // Try common value keys
+  const record = obj as Record<string, unknown>
   const valueKeys = ['value', 'name', 'label', 'title', 'description', 'url', 'uri']
   for (const key of valueKeys) {
-    if (obj[key] !== undefined && obj[key] !== null) {
-      return String(obj[key])
+    if (record[key] !== undefined && record[key] !== null) {
+      return String(record[key])
     }
   }
-
-  // If object has only one key, use its value
-  const keys = Object.keys(obj)
+  const keys = Object.keys(record)
   if (keys.length === 1) {
-    return extractMeaningfulValue(obj[keys[0]])
+    return extractMeaningfulValue(record[keys[0]])
   }
-
   return JSON.stringify(obj)
 }
 
@@ -87,21 +75,21 @@ describe('ReportViewer utility functions', () => {
   describe('elideValue', () => {
     it('should elide long hash values when key suggests hash', () => {
       const longHash = 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6'
-      const result = elideValue(longHash, 'hash')
-      // Should be: first 10 chars + '...' + last 10 chars
+      const result = elideValue(longHash, 'hash') as string
       expect(result).toBe('a1b2c3d4e5...v2w3x4y5z6')
       expect(result.length).toBeLessThan(longHash.length)
     })
 
     it('should elide long hash values when key contains digest', () => {
       const longHash = 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6'
-      const result = elideValue(longHash, 'digest')
+      const result = elideValue(longHash, 'digest') as string
       expect(result).toBe('a1b2c3d4e5...v2w3x4y5z6')
+      expect(result.length).toBe(23)
     })
 
     it('should elide values that look like hashes (40+ hex chars)', () => {
       const hexHash = 'a'.repeat(64)
-      const result = elideValue(hexHash)
+      const result = elideValue(hexHash) as string
       expect(result).toContain('...')
       expect(result.length).toBe(23) // 10 + 3 + 10
     })
@@ -125,8 +113,7 @@ describe('ReportViewer utility functions', () => {
 
     it('should truncate very long strings (>100 chars)', () => {
       const longString = 'a'.repeat(150)
-      const result = elideValue(longString)
-      // Should be: first 10 chars + '...' + last 10 chars (from substring operations)
+      const result = elideValue(longString) as string
       expect(result).toBe('aaaaaaaaaa...aaaaaaaaaa')
       expect(result.length).toBe(23) // 10 + 3 + 10
     })

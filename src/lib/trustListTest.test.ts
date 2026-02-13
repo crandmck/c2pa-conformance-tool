@@ -11,7 +11,8 @@ describe('trustListTest', () => {
       const mockTrustList = '-----BEGIN CERTIFICATE-----\nMockTrustList\n-----END CERTIFICATE-----'
       const mockTsaTrustList = '-----BEGIN CERTIFICATE-----\nMockTsaTrustList\n-----END CERTIFICATE-----'
 
-      global.fetch = vi.fn((url: string) => {
+      global.fetch = vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString()
         if (url.includes('C2PA-TRUST-LIST.pem')) {
           return Promise.resolve({
             ok: true,
@@ -32,7 +33,7 @@ describe('trustListTest', () => {
           } as Response)
         }
         return Promise.reject(new Error('Unknown URL'))
-      })
+      }) as any
 
       const consoleSpy = vi.spyOn(console, 'log')
 

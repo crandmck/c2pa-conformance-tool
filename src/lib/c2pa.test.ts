@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import type { ValidationStatus } from '@contentauth/c2pa-web'
 import { processFile, getVersion } from './c2pa'
+import type { ConformanceReport } from './types'
 
 // Track which validation is being called
 let validationCallCount = 0
@@ -8,7 +10,7 @@ let validationCallCount = 0
 vi.mock('@contentauth/c2pa-web', () => ({
   createC2pa: vi.fn(() => Promise.resolve({
     reader: {
-      fromBlob: vi.fn((type: string, file: File, settings: any) => {
+      fromBlob: vi.fn((type: string, file: File, settings: { trust?: { trustAnchors?: string } }) => {
         validationCallCount++
 
         // First call (main trust list) - untrusted signature
@@ -100,7 +102,8 @@ describe('c2pa utilities', () => {
     vi.clearAllMocks()
 
     // Mock successful trust list fetch
-    global.fetch = vi.fn((url: string) => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
       let content = '-----BEGIN CERTIFICATE-----\nMockCertificate\n-----END CERTIFICATE-----'
 
       // Mock ITL files with marker content
@@ -116,7 +119,7 @@ describe('c2pa utilities', () => {
         statusText: 'OK',
         text: () => Promise.resolve(content)
       } as Response)
-    })
+    }) as any
   })
 
   afterEach(() => {
@@ -140,7 +143,8 @@ describe('c2pa utilities', () => {
 
       expect(result).toBeDefined()
       expect(result.activeManifest).toBeDefined()
-      expect(result.activeManifest.title).toBe('Test Manifest')
+      // Mock returns camelCase activeManifest; real SDK uses active_manifest
+      expect((result as ConformanceReport & { activeManifest?: { title?: string } }).activeManifest?.title).toBe('Test Manifest')
       expect(result.usedITL).toBe(false)
     })
 
@@ -188,10 +192,10 @@ describe('c2pa utilities', () => {
       expect(result).toBeDefined()
       // Check if ITL validation succeeded
       const hasUntrusted = result.validation_results?.activeManifest?.failure?.some(
-        (f: any) => f.code === 'signingCredential.untrusted'
+        (f: ValidationStatus) => f.code === 'signingCredential.untrusted'
       )
       const hasTrusted = result.validation_results?.activeManifest?.success?.some(
-        (s: any) => s.code === 'signingCredential.trusted'
+        (s: ValidationStatus) => s.code === 'signingCredential.trusted'
       )
 
       if (hasTrusted && !hasUntrusted) {

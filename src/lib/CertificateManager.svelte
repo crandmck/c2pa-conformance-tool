@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
   import { X509Certificate } from '@peculiar/x509'
+  import { CERTIFICATE_OID, EXTENDED_KEY_USAGE_OID } from './constants'
 
   export let testCertificates: string[] = []
   export let testModeEnabled = false
@@ -51,7 +52,7 @@
 
   function extractSubjectAltNames(cert: X509Certificate): string[] {
     try {
-      const san = cert.getExtension('2.5.29.17') // Subject Alternative Name OID
+      const san = cert.getExtension(CERTIFICATE_OID.SUBJECT_ALT_NAME)
       if (san) {
         // Basic extraction - in reality this would need proper ASN.1 parsing
         return ['(Present - detailed parsing not implemented)']
@@ -64,7 +65,7 @@
 
   function extractKeyUsage(cert: X509Certificate): string[] {
     try {
-      const ext = cert.getExtension('2.5.29.15') // Key Usage OID
+      const ext = cert.getExtension(CERTIFICATE_OID.KEY_USAGE)
       if (!ext) return []
 
       // Parse the key usage bit string
@@ -103,17 +104,16 @@
 
   function extractExtendedKeyUsage(cert: X509Certificate): string[] {
     try {
-      const ext = cert.getExtension('2.5.29.37') // Extended Key Usage OID
+      const ext = cert.getExtension(CERTIFICATE_OID.EXTENDED_KEY_USAGE)
       if (!ext) return []
 
-      // Common EKU OIDs
       const ekuOIDs: Record<string, string> = {
-        '1.3.6.1.5.5.7.3.1': 'TLS Web Server Authentication',
-        '1.3.6.1.5.5.7.3.2': 'TLS Web Client Authentication',
-        '1.3.6.1.5.5.7.3.3': 'Code Signing',
-        '1.3.6.1.5.5.7.3.4': 'Email Protection',
-        '1.3.6.1.5.5.7.3.8': 'Timestamping',
-        '1.3.6.1.5.5.7.3.9': 'OCSP Signing',
+        [EXTENDED_KEY_USAGE_OID.SERVER_AUTH]: 'TLS Web Server Authentication',
+        [EXTENDED_KEY_USAGE_OID.CLIENT_AUTH]: 'TLS Web Client Authentication',
+        [EXTENDED_KEY_USAGE_OID.CODE_SIGNING]: 'Code Signing',
+        [EXTENDED_KEY_USAGE_OID.EMAIL_PROTECTION]: 'Email Protection',
+        [EXTENDED_KEY_USAGE_OID.TIME_STAMPING]: 'Timestamping',
+        [EXTENDED_KEY_USAGE_OID.OCSP_SIGNING]: 'OCSP Signing',
         '1.3.6.1.4.1.311.10.3.12': 'Document Signing',
         '2.16.840.1.113730.4.1': 'Netscape Server Gated Crypto'
       }

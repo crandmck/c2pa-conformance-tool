@@ -5,8 +5,9 @@
   import CertificateManager from './lib/CertificateManager.svelte'
   import { processFile } from './lib/c2pa'
   import { testTrustListFetch } from './lib/trustListTest'
+  import type { ConformanceReport } from './lib/types'
 
-  let report: any = null
+  let report: ConformanceReport | null = null
   let error: string | null = null
   let processing = false
   let globalDragOver = false
@@ -19,13 +20,11 @@
   let testRootLoaded = false
 
   // Test trust list fetching on component mount
-  onMount(async () => {
+  onMount(() => {
     console.log('=== C2PA Conformance Tool Initialized ===')
-    try {
-      await testTrustListFetch()
-    } catch (err) {
+    testTrustListFetch().catch(err => {
       console.warn('Trust list fetch test failed:', err)
-    }
+    })
 
     // Initialize dark mode from localStorage or system preference
     const savedTheme = localStorage.getItem('theme')

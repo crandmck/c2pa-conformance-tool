@@ -1,8 +1,12 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte'
+  import { createEventDispatcher, onDestroy } from 'svelte'
+  import type { ValidationStatus } from '@contentauth/c2pa-web'
   import CertificateManager from './CertificateManager.svelte'
+  import type { ConformanceReport, ValidationStatusItem, AssertionSummaryItem } from './types'
+  import type { Ingredient, Manifest } from '@contentauth/c2pa-web'
+  import { VALIDATION_STATUS } from './constants'
 
-  export let report: any
+  export let report: ConformanceReport
   export let usedTestCertificates = false
   export let file: File | null = null
   export let testCertificates: string[] = []
@@ -19,7 +23,7 @@
   let mediaUrl: string | null = null
   let mediaType: 'image' | 'video' | 'audio' | 'document' | 'unknown' = 'unknown'
   let fileInput: HTMLInputElement
-  let validationStatus: any[] = []
+  let validationStatus: ValidationStatusItem[] = []
   let expandedIngredients: Set<number> = new Set()
   let expandedAssertions: Set<number> = new Set()
 
@@ -41,36 +45,32 @@
     expandedAssertions = expandedAssertions // Trigger reactivity
   }
 
-  // Get ingredient manifest from the manifests map
-  function getIngredientManifest(ingredient: any) {
+  // Get ingredient manifest from the manifests map (returns Manifest for template typing)
+  function getIngredientManifest(ingredient: Ingredient): Manifest | null {
     if (!report.manifests) {
       return null
     }
 
-    // Check if ingredient has a c2pa_manifest property
-    if (ingredient.c2pa_manifest) {
-      return ingredient.c2pa_manifest
+    const ing = ingredient as Ingredient & { c2pa_manifest?: unknown }
+    if (ing.c2pa_manifest) {
+      return ing.c2pa_manifest as Manifest
     }
 
-    // Check if ingredient has an active_manifest that points to manifests map
     if (ingredient.active_manifest && report.manifests[ingredient.active_manifest]) {
       return report.manifests[ingredient.active_manifest]
     }
 
-    // Check for manifest_data directly
     if (ingredient.manifest_data) {
-      return ingredient.manifest_data
+      return ingredient.manifest_data as unknown as Manifest
     }
 
-    // Look up by instance_id in the manifests map
     if (ingredient.instance_id && report.manifests[ingredient.instance_id]) {
       return report.manifests[ingredient.instance_id]
     }
 
-    // Search through all manifests to find one with matching instance_id
-    for (const [key, manifest] of Object.entries(report.manifests)) {
+    for (const manifest of Object.values(report.manifests)) {
       if (manifest && typeof manifest === 'object' && 'instance_id' in manifest) {
-        if ((manifest as any).instance_id === ingredient.instance_id) {
+        if ((manifest as Manifest).instance_id === ingredient.instance_id) {
           return manifest
         }
       }
@@ -100,6 +100,13 @@
     }
   }
 
+  onDestroy(() => {
+    if (mediaUrl) {
+      URL.revokeObjectURL(mediaUrl)
+      mediaUrl = null
+    }
+  })
+
   // Get the active manifest object from the manifests map
   $: activeManifest = report.active_manifest && report.manifests
     ? report.manifests[report.active_manifest]
@@ -110,43 +117,39 @@
 
   // Check if trusted based on validation_state or signingCredential.trusted status
   $: isTrusted = report.validation_state === 'Trusted' ||
-    validationResults?.success?.some((status: any) =>
-      status.code === 'signingCredential.trusted'
+    validationResults?.success?.some((status: ValidationStatus) =>
+      status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_TRUSTED
     )
 
   // Check if signature is using Interim Trust List
-  // We use the usedITL flag from the manifest store
-  $: usedITL = (report as any)?.usedITL === true
+  $: usedITL = report.usedITL === true
 
   // Build validation status array - show key validation results from success and failure
   $: {
-    const successStatuses = validationResults?.success?.filter((status: any) =>
-      status.code === 'signingCredential.trusted' ||
-      status.code === 'timeStamp.trusted' ||
-      status.code === 'claimSignature.validated'
-    ).map((status: any) => {
-      // Mark as ITL if trusted via ITL (usedITL flag is true)
-      const isInterim = status.code === 'signingCredential.trusted' && usedITL
+    const successStatuses: ValidationStatusItem[] = validationResults?.success?.filter((status: ValidationStatus) =>
+      status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_TRUSTED ||
+      status.code === VALIDATION_STATUS.TIMESTAMP_TRUSTED ||
+      status.code === VALIDATION_STATUS.CLAIM_SIGNATURE_VALIDATED
+    ).map((status: ValidationStatus) => {
+      const isInterim = status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_TRUSTED && usedITL
       return {
         code: status.code,
         success: true,
-        isInterim: isInterim,
-        explanation: status.explanation || 'Validation passed'
+        isInterim,
+        explanation: status.explanation ?? 'Validation passed'
       }
-    }) || []
+    }) ?? []
 
-    const failureStatuses = validationResults?.failure?.filter((status: any) =>
-      status.code === 'signingCredential.untrusted' ||
-      status.code === 'timeStamp.untrusted' ||
-      status.code === 'claimSignature.invalid'
-    ).map((status: any) => {
-      return {
-        code: status.code,
-        success: false,
-        isInterim: false,
-        explanation: status.explanation || 'Validation failed'
-      }
-    }) || []
+    const failureStatuses: ValidationStatusItem[] = validationResults?.failure?.filter((status: ValidationStatus) =>
+      status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_UNTRUSTED ||
+      status.code === VALIDATION_STATUS.TIMESTAMP_UNTRUSTED ||
+      status.code === VALIDATION_STATUS.CLAIM_SIGNATURE_INVALID
+    ).map((status: ValidationStatus) => ({
+      code: status.code,
+      success: false,
+      isInterim: false,
+      explanation: status.explanation ?? 'Validation failed'
+    })) ?? []
 
     validationStatus = [...successStatuses, ...failureStatuses]
   }
@@ -168,7 +171,7 @@
   }
 
   // Elide long hash-like values for readability
-  function elideValue(value: any, key?: string): any {
+  function elideValue(value: unknown, key?: string): unknown {
     if (typeof value === 'string') {
       // Check if this is a hash-like field based on key name
       const isHashKey = key && (
@@ -194,9 +197,10 @@
       }
       return value.map(v => elideValue(v))
     } else if (typeof value === 'object' && value !== null) {
-      const result: any = {}
-      for (const k in value) {
-        result[k] = elideValue(value[k], k)
+      const result: Record<string, unknown> = {}
+      const obj = value as Record<string, unknown>
+      for (const k of Object.keys(obj)) {
+        result[k] = elideValue(obj[k], k)
       }
       return result
     }
@@ -204,7 +208,7 @@
   }
 
   // Format assertion data with elided hashes
-  function formatAssertionData(data: any): string {
+  function formatAssertionData(data: unknown): string {
     const elided = elideValue(data)
     return JSON.stringify(elided, null, 2)
   }
@@ -217,43 +221,40 @@
   }
 
   // Extract key-value pairs from assertion data for display
-  function extractAssertionSummary(data: any): Array<{key: string, value: any, digitalSourceType?: string, isAction?: boolean, actionName?: string, description?: string}> {
+  function extractAssertionSummary(data: unknown): AssertionSummaryItem[] {
     if (!data || typeof data !== 'object') {
       return []
     }
 
-    const summary: Array<{key: string, value: any, digitalSourceType?: string}> = []
+    const summary: AssertionSummaryItem[] = []
+    const obj = data as Record<string, unknown>
 
     // Handle actions specially - show each action separately with specific fields
-    if (data.actions && Array.isArray(data.actions) && data.actions.length > 0) {
-      data.actions.forEach((action: any, index: number) => {
-        // For actions, we want to show specific fields rather than using generic extraction
-        const actionName = action.action || extractMeaningfulValue(action)
+    const actions = obj.actions
+    if (actions && Array.isArray(actions) && actions.length > 0) {
+      actions.forEach((action: unknown, index: number) => {
+        const act = action as Record<string, unknown>
+        const actionName = (act.action as string) || extractMeaningfulValue(action)
         if (actionName !== '') {
-          // Get digitalSourceType from the action itself, or fall back to top-level
-          const digitalSourceType = action.digitalSourceType || data.digitalSourceType
-          const description = action.description
-
-          const item = {
-            key: data.actions.length > 1 ? `action ${index + 1}` : 'action',
+          const digitalSourceType = (act.digitalSourceType ?? obj.digitalSourceType) as string | undefined
+          const description = act.description as string | undefined
+          summary.push({
+            key: actions.length > 1 ? `action ${index + 1}` : 'action',
             value: action,
-            digitalSourceType: digitalSourceType,
+            digitalSourceType,
             isAction: true,
-            actionName: actionName,
-            description: description
-          }
-          summary.push(item)
+            actionName,
+            description
+          })
         }
       })
     }
 
-    // Add digitalSourceType separately only if there are no actions and it exists at top level
-    if (!data.actions && data.digitalSourceType) {
-      summary.push({ key: 'digitalSourceType', value: data.digitalSourceType })
+    if (!actions && obj.digitalSourceType) {
+      summary.push({ key: 'digitalSourceType', value: obj.digitalSourceType })
     }
 
-    // Extract remaining top-level fields
-    for (const [key, value] of Object.entries(data)) {
+    for (const [key, value] of Object.entries(obj)) {
       // Skip actions and digitalSourceType as we handled them above
       if (key === 'actions' || key === 'digitalSourceType') {
         continue
@@ -300,7 +301,7 @@
   }
 
   // Format a value for display
-  function formatValue(value: any): string {
+  function formatValue(value: unknown): string {
     if (value === null || value === undefined) {
       return ''
     }
@@ -309,47 +310,41 @@
     }
     if (typeof value === 'object') {
       if (Array.isArray(value)) {
-        // For arrays of objects, try to extract meaningful properties
         if (value.length > 0 && typeof value[0] === 'object') {
           const items = value.map(item => extractMeaningfulValue(item)).filter(s => s !== '')
           return items.length > 0 ? items.join(', ') : ''
         }
         return value.length <= 3 ? value.join(', ') : `[${value.length} items]`
       }
-      // For single objects, extract meaningful value
       const extracted = extractMeaningfulValue(value)
       return extracted !== '' ? extracted : ''
     }
     const str = String(value)
-    // Never return "[object Object]"
     if (str === '[object Object]') {
       return ''
     }
-    // Truncate very long strings
     return str.length > 100 ? str.substring(0, 97) + '...' : str
   }
 
   // Extract a meaningful string from an object
-  function extractMeaningfulValue(obj: any): string {
+  function extractMeaningfulValue(obj: unknown): string {
     if (!obj || typeof obj !== 'object') {
       const str = String(obj)
-      // Never return "[object Object]"
       if (str === '[object Object]') {
         return ''
       }
       return str
     }
 
-    // Common patterns for C2PA assertions
     const meaningfulKeys = [
       'action', 'name', 'label', 'title', 'type', 'digitalSourceType',
       'softwareAgent', 'when', 'reason', 'description', 'value', 'version'
     ]
 
-    // Try to find a meaningful property
+    const record = obj as Record<string, unknown>
     for (const key of meaningfulKeys) {
-      if (obj[key] !== undefined && obj[key] !== null) {
-        const value = obj[key]
+      if (record[key] !== undefined && record[key] !== null) {
+        const value = record[key]
         // If the value is a simple type, return it
         if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
           return String(value)
@@ -357,20 +352,18 @@
       }
     }
 
-    // For actions, try to get action type
-    if (obj.action) {
-      return String(obj.action)
+    if (record.action) {
+      return String(record.action)
     }
 
-    // If we have just a few keys with simple values, show them
-    const keys = Object.keys(obj)
+    const keys = Object.keys(record)
     if (keys.length > 0 && keys.length <= 3) {
       const simpleEntries = keys
         .filter(k => {
-          const v = obj[k]
+          const v = record[k]
           return typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
         })
-        .map(k => `${k}: ${obj[k]}`)
+        .map(k => `${k}: ${record[k]}`)
 
       if (simpleEntries.length > 0) {
         return simpleEntries.join(', ')
