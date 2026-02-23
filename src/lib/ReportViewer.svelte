@@ -8,6 +8,7 @@
 
   export let report: ConformanceReport
   export let usedTestCertificates = false
+  export let testCertIssuers: string[] = []
   export let file: File | null = null
   export let testCertificates: string[] = []
   export let testModeEnabled = false
@@ -20,12 +21,20 @@
   }>()
 
   let showRaw = false
+  let copied = false
+  let copyTimeout: ReturnType<typeof setTimeout> | null = null
   let mediaUrl: string | null = null
   let mediaType: 'image' | 'video' | 'audio' | 'document' | 'unknown' = 'unknown'
   let fileInput: HTMLInputElement
   let validationStatus: ValidationStatusItem[] = []
   let expandedIngredients: Set<number> = new Set()
   let expandedAssertions: Set<number> = new Set()
+  let showBackToTop = false
+
+  // Track scroll position for back to top button
+  function handleScroll() {
+    showBackToTop = window.scrollY > 400
+  }
 
   function toggleIngredient(index: number) {
     if (expandedIngredients.has(index)) {
@@ -43,6 +52,32 @@
       expandedAssertions.add(index)
     }
     expandedAssertions = expandedAssertions // Trigger reactivity
+  }
+
+  function expandAllAssertions() {
+    const manifest = activeManifest
+    if (manifest?.assertions) {
+      expandedAssertions = new Set(manifest.assertions.map((_, i) => i))
+    }
+  }
+
+  function collapseAllAssertions() {
+    expandedAssertions = new Set()
+  }
+
+  function expandAllIngredients() {
+    const manifest = activeManifest
+    if (manifest?.ingredients) {
+      expandedIngredients = new Set(manifest.ingredients.map((_, i) => i))
+    }
+  }
+
+  function collapseAllIngredients() {
+    expandedIngredients = new Set()
+  }
+
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   // Get ingredient manifest from the manifests map (returns Manifest for template typing)
@@ -105,7 +140,15 @@
       URL.revokeObjectURL(mediaUrl)
       mediaUrl = null
     }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('scroll', handleScroll)
+    }
   })
+
+  // Add scroll listener on mount
+  $: if (typeof window !== 'undefined') {
+    window.addEventListener('scroll', handleScroll)
+  }
 
   // Get the active manifest object from the manifests map
   $: activeManifest = report.active_manifest && report.manifests
@@ -123,6 +166,10 @@
 
   // Check if signature is using Interim Trust List
   $: usedITL = report.usedITL === true
+
+  // Check if test certificates were actually needed for validation
+  // This is determined by validating twice in processFile - once with official TL, once with test certs
+  $: actuallyUsedTestCert = report.usedTestCerts === true
 
   // Build validation status array - show key validation results from success and failure
   $: {
@@ -166,8 +213,14 @@
     URL.revokeObjectURL(url)
   }
 
-  function copyToClipboard() {
-    navigator.clipboard.writeText(JSON.stringify(report, null, 2))
+  async function copyToClipboard() {
+    await navigator.clipboard.writeText(JSON.stringify(report, null, 2))
+    if (copyTimeout) clearTimeout(copyTimeout)
+    copied = true
+    copyTimeout = setTimeout(() => {
+      copied = false
+      copyTimeout = null
+    }, 2000)
   }
 
   // Elide long hash-like values for readability
@@ -389,51 +442,139 @@
   }
 </script>
 
-<div class="text-left mt-8 animate-fade-in">
-  <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6">
-    <div>
-      <h2 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">Conformance Report</h2>
-      <p class="text-gray-600 dark:text-gray-400">Detailed C2PA manifest validation results</p>
-    </div>
-    <div class="flex flex-wrap gap-3">
-      <button
-        class="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all duration-200 font-medium shadow-sm hover:shadow"
-        on:click={() => showRaw = !showRaw}
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          {#if showRaw}
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+  <div class="text-left mt-8 animate-fade-in">
+  <!-- Prominent Validation Status Banner -->
+  <div class="mb-8 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-lg">
+    <div class="flex items-center gap-4">
+      <div class={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center ${isTrusted ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
+        {#if isTrusted}
+          <svg class="w-10 h-10 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+          </svg>
+        {:else}
+          <svg class="w-10 h-10 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+        {/if}
+      </div>
+      <div class="flex-1">
+        <h3 class="text-2xl font-bold {isTrusted ? 'text-green-900 dark:text-green-100' : 'text-red-900 dark:text-red-100'} mb-1">
+          {#if isTrusted}
+            {#if usedITL}
+              Signature Trusted via ITL ✓
+            {:else if actuallyUsedTestCert}
+              Signature Trusted via Test Certificate ✓
+            {:else}
+              Signature Trusted ✓
+            {/if}
           {:else}
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            Signature Not Trusted
           {/if}
-        </svg>
-        {showRaw ? 'Formatted' : 'Raw JSON'}
-      </button>
+        </h3>
+        <p class="text-sm {isTrusted ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}">
+          {#if usedITL && isTrusted}
+            Validated using Interim Trust List - pending C2PA official certification
+            <a
+              href="https://c2pa.org/conformance/"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1 ml-2 text-xs underline hover:no-underline"
+              title="The Interim Trust List (ITL) contains certificates that are in the process of C2PA certification"
+            >
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+              </svg>
+              What is the ITL?
+            </a>
+          {:else if actuallyUsedTestCert && isTrusted}
+            Validated using custom test certificates - not validated against official C2PA trust lists
+          {:else if isTrusted}
+            Validated against official C2PA Trust List
+          {:else}
+            The signing credential could not be validated against known trust lists
+          {/if}
+        </p>
+        {#if usedITL && isTrusted}
+          <div class="mt-2 flex items-center gap-2 flex-wrap">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-xs font-semibold">
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+              </svg>
+              ITL Validated
+            </span>
+            {#if testModeEnabled}
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 rounded-full text-xs font-semibold">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                </svg>
+                Test Mode Active
+              </span>
+            {/if}
+          </div>
+        {:else if actuallyUsedTestCert && isTrusted}
+          <div class="mt-2">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 rounded-full text-xs font-semibold">
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+              </svg>
+              Test Mode
+            </span>
+          </div>
+        {:else if testModeEnabled && isTrusted}
+          <div class="mt-2">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 rounded-full text-xs font-semibold">
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+              </svg>
+              Test Mode Active
+            </span>
+          </div>
+        {/if}
+      </div>
+    </div>
+  </div>
+
+  <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Conformance Report</h2>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Manifest validation details</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="flex items-center gap-1 border border-gray-200 dark:border-gray-600 rounded-lg p-1">
+        <button
+          class="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors {!showRaw ? 'bg-gray-100 dark:bg-gray-700 font-medium' : ''}"
+          on:click={() => showRaw = false}
+        >
+          Formatted
+        </button>
+        <button
+          class="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors {showRaw ? 'bg-gray-100 dark:bg-gray-700 font-medium' : ''}"
+          on:click={() => showRaw = true}
+        >
+          Raw JSON
+        </button>
+      </div>
       <button
-        class="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all duration-200 font-medium shadow-sm hover:shadow"
+        class="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
         on:click={downloadReport}
+        title="Download report as JSON"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-        </svg>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
         Download
       </button>
       <button
-        class="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all duration-200 font-medium shadow-sm hover:shadow"
+        class="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors {copied ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}"
         on:click={copyToClipboard}
+        title="Copy JSON to clipboard"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-        </svg>
-        Copy
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+        {copied ? 'Copied!' : 'Copy'}
       </button>
       <button
-        class="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-all duration-200 font-semibold shadow-md hover:shadow-lg transform hover:scale-105"
+        class="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors"
         on:click={handleNewFile}
       >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
         New File
       </button>
     </div>
@@ -464,6 +605,44 @@
     </div>
   {/if}
 
+  <!-- Section Navigation -->
+  {#if activeManifest}
+    <div class="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-sm font-semibold text-blue-900 dark:text-blue-100 mr-2">Quick Navigation:</span>
+        <a href="#media-preview" class="text-sm px-3 py-1 bg-white dark:bg-gray-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg transition-colors">Media</a>
+        <a href="#validation-status" class="text-sm px-3 py-1 bg-white dark:bg-gray-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg transition-colors">Validation</a>
+        <a href="#signature-info" class="text-sm px-3 py-1 bg-white dark:bg-gray-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg transition-colors">Signature</a>
+        <a href="#manifest-details" class="text-sm px-3 py-1 bg-white dark:bg-gray-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg transition-colors">Manifest</a>
+        {#if activeManifest.assertions && activeManifest.assertions.length > 0}
+          <a href="#assertions" class="text-sm px-3 py-1 bg-white dark:bg-gray-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg transition-colors">
+            Assertions ({activeManifest.assertions.length})
+          </a>
+        {/if}
+        {#if activeManifest.ingredients && activeManifest.ingredients.length > 0}
+          <a href="#ingredients" class="text-sm px-3 py-1 bg-white dark:bg-gray-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg transition-colors">
+            Ingredients ({activeManifest.ingredients.length})
+          </a>
+        {/if}
+        <a href="#test-certificates" class="text-sm px-3 py-1 bg-white dark:bg-gray-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg transition-colors">Test Certs</a>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Back to Top Button -->
+  {#if showBackToTop}
+    <button
+      on:click={scrollToTop}
+      class="fixed bottom-8 right-8 z-50 p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-2xl transition-all duration-200 hover:scale-110 animate-fade-in"
+      aria-label="Back to top"
+      title="Back to top"
+    >
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+      </svg>
+    </button>
+  {/if}
+
   {#if showRaw}
     <div class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-8 shadow-lg">
       <div class="flex items-center gap-3 mb-6 pb-4 border-b-2 border-gray-200 dark:border-gray-700">
@@ -478,7 +657,7 @@
     </div>
   {:else}
     <!-- Media Preview and Validation Status -->
-    <div class="mb-8">
+    <div class="mb-8" id="media-preview">
       <div class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300">
         <div class="flex items-center gap-3 mb-6 pb-4 border-b-2 border-blue-200 dark:border-blue-800">
           <div class="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-500 dark:to-blue-600 rounded-lg flex items-center justify-center text-white shadow-md">
@@ -553,22 +732,27 @@
           </div>
         {/if}
 
-        <!-- Validation Status (below media preview) - Always shown -->
-        <div class="mt-8 pt-8 border-t-2 border-gray-200 dark:border-gray-700">
-          <div class="flex items-center gap-3 mb-5">
-            <div class="w-8 h-8 bg-gradient-to-br from-green-600 to-emerald-600 dark:from-green-500 dark:to-emerald-500 rounded-lg flex items-center justify-center text-white shadow">
-              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+      </div>
+    </div>
+
+    <div class="space-y-8">
+      {#if activeManifest}
+        <!-- Validation Status Details Section -->
+        <section class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300" id="validation-status">
+          <div class="flex items-center gap-3 mb-6 pb-4 border-b-2 border-blue-200 dark:border-blue-800">
+            <div class="w-10 h-10 bg-gradient-to-br from-green-600 to-emerald-600 dark:from-green-500 dark:to-emerald-500 rounded-lg flex items-center justify-center text-white shadow-md">
+              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
               </svg>
             </div>
-            <h4 class="text-xl font-bold text-gray-900 dark:text-white">Validation Status</h4>
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Validation Status Details</h3>
           </div>
           {#if validationStatus && validationStatus.length > 0}
             <div class="space-y-3">
               {#each validationStatus as status}
                 <div class={`rounded-xl p-5 border-2 transition-all duration-200 hover:shadow-md ${
                   status.isInterim
-                    ? 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-400 dark:border-yellow-600'
+                    ? 'bg-gradient-to-r from-blue-50 to-sky-50 dark:from-blue-900/20 dark:to-sky-900/20 border-blue-400 dark:border-blue-600'
                     : status.success
                       ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-300 dark:border-green-700'
                       : 'bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-red-300 dark:border-red-700'
@@ -576,24 +760,24 @@
                   <div class="flex items-start gap-3">
                     <div class={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white text-sm font-bold ${
                       status.isInterim
-                        ? 'bg-yellow-600 dark:bg-yellow-500'
+                        ? 'bg-blue-600 dark:bg-blue-500'
                         : status.success
                           ? 'bg-green-600 dark:bg-green-500'
                           : 'bg-red-600 dark:bg-red-500'
                     }`}>
-                      {status.isInterim ? '⚠' : status.success ? '✓' : '✕'}
+                      {status.isInterim ? 'i' : status.success ? '✓' : '✕'}
                     </div>
                     <div class="flex-1">
                       <p class="font-bold text-gray-900 dark:text-gray-100 mb-1">
                         {status.code}
                         {#if status.isInterim}
-                          <span class="ml-2 px-2 py-0.5 bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 text-xs font-semibold rounded">ITL</span>
+                          <span class="ml-2 px-2 py-0.5 bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 text-xs font-semibold rounded">ITL</span>
                         {/if}
                       </p>
                       {#if status.explanation}
                         <p class={`text-sm leading-relaxed ${
                           status.isInterim
-                            ? 'text-yellow-800 dark:text-yellow-300'
+                            ? 'text-blue-800 dark:text-blue-300'
                             : status.success
                               ? 'text-green-800 dark:text-green-300'
                               : 'text-red-800 dark:text-red-300'
@@ -609,14 +793,10 @@
               <p class="text-gray-600 dark:text-gray-400">No validation status available</p>
             </div>
           {/if}
-        </div>
-      </div>
-    </div>
+        </section>
 
-    <div class="space-y-8">
-      {#if activeManifest}
         {#if activeManifest.signature_info}
-          <section class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <section class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300" id="signature-info">
             <div class="flex items-center gap-3 mb-6 pb-4 border-b-2 border-blue-200 dark:border-blue-800">
               <div class="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-600 dark:from-indigo-500 dark:to-purple-500 rounded-lg flex items-center justify-center text-white shadow-md">
                 <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
@@ -654,7 +834,7 @@
           </section>
         {/if}
 
-        <section class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <section class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300" id="manifest-details">
           <div class="flex items-center gap-3 mb-6 pb-4 border-b-2 border-blue-200 dark:border-blue-800">
             <div class="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-600 dark:from-blue-500 dark:to-cyan-500 rounded-lg flex items-center justify-center text-white shadow-md">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -693,7 +873,7 @@
         </section>
 
         {#if activeManifest.assertions && activeManifest.assertions.length > 0}
-          <section class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <section class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300" id="assertions">
             <div class="flex items-center gap-3 mb-6 pb-4 border-b-2 border-blue-200 dark:border-blue-800">
               <div class="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 dark:from-purple-500 dark:to-pink-500 rounded-lg flex items-center justify-center text-white shadow-md">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -703,8 +883,24 @@
               <div class="flex-1">
                 <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Assertions</h3>
               </div>
-              <div class="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-sm font-bold">
-                {activeManifest.assertions.length}
+              <div class="flex items-center gap-2">
+                <button
+                  on:click={expandAllAssertions}
+                  class="text-xs px-3 py-1.5 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-lg transition-colors font-semibold"
+                  title="Expand all assertions"
+                >
+                  Expand All
+                </button>
+                <button
+                  on:click={collapseAllAssertions}
+                  class="text-xs px-3 py-1.5 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-lg transition-colors font-semibold"
+                  title="Collapse all assertions"
+                >
+                  Collapse All
+                </button>
+                <div class="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-sm font-bold">
+                  {activeManifest.assertions.length}
+                </div>
               </div>
             </div>
             <div class="space-y-4">
@@ -811,7 +1007,7 @@
         {/if}
 
         {#if activeManifest.ingredients && activeManifest.ingredients.length > 0}
-          <section class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <section class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300" id="ingredients">
             <div class="flex items-center gap-3 mb-6 pb-4 border-b-2 border-blue-200 dark:border-blue-800">
               <div class="w-10 h-10 bg-gradient-to-br from-orange-600 to-red-600 dark:from-orange-500 dark:to-red-500 rounded-lg flex items-center justify-center text-white shadow-md">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -821,8 +1017,24 @@
               <div class="flex-1">
                 <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Ingredients</h3>
               </div>
-              <div class="px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full text-sm font-bold">
-                {activeManifest.ingredients.length}
+              <div class="flex items-center gap-2">
+                <button
+                  on:click={expandAllIngredients}
+                  class="text-xs px-3 py-1.5 bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 rounded-lg transition-colors font-semibold"
+                  title="Expand all ingredients"
+                >
+                  Expand All
+                </button>
+                <button
+                  on:click={collapseAllIngredients}
+                  class="text-xs px-3 py-1.5 bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 rounded-lg transition-colors font-semibold"
+                  title="Collapse all ingredients"
+                >
+                  Collapse All
+                </button>
+                <div class="px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full text-sm font-bold">
+                  {activeManifest.ingredients.length}
+                </div>
               </div>
             </div>
             <div class="space-y-4">
@@ -979,7 +1191,7 @@
   {/if}
 
   <!-- Test Certificates Section -->
-  <div class="mt-8 pt-8 border-t-2 border-gray-200 dark:border-gray-700">
+  <div class="mt-8 pt-8 border-t-2 border-gray-200 dark:border-gray-700" id="test-certificates">
     <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Test Certificates</h3>
     <p class="text-gray-600 dark:text-gray-400 mb-6">
       Add or remove test certificates to revalidate this file. Changes will immediately regenerate the report with updated validation results.

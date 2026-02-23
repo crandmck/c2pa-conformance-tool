@@ -42,7 +42,7 @@
 
 {#if compact}
   <button
-    class="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 whitespace-nowrap"
+    class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors duration-200 shadow-sm whitespace-nowrap"
     on:click={handleClick}
   >
     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,10 +59,10 @@
   />
 {:else}
   <div
-    class={`relative border-2 border-dashed rounded-2xl p-16 cursor-pointer transition-all duration-300 group ${
+    class={`relative border-2 border-dashed rounded-2xl p-12 sm:p-16 cursor-pointer transition-colors duration-200 group ${
       dragOver
-        ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 scale-[1.02] shadow-xl'
-        : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-400 hover:shadow-lg hover:scale-[1.01]'
+        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
+        : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-400 hover:bg-gray-50/50 dark:hover:bg-gray-700/50'
     }`}
     on:dragover={handleDragOver}
     on:dragleave={handleDragLeave}

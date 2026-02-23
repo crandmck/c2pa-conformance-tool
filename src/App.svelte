@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { X509Certificate } from '@peculiar/x509'
   import FileUpload from './lib/FileUpload.svelte'
   import ReportViewer from './lib/ReportViewer.svelte'
   import CertificateManager from './lib/CertificateManager.svelte'
@@ -15,9 +16,40 @@
   let usedTestCertificates = false
   let selectedFile: File | null = null
   let darkMode = false
-  let infoSectionDismissed = false
+  let infoSectionExpanded = false
+  let testCertSectionExpanded = false
   let testModeEnabled = false
   let testRootLoaded = false
+  let processingStatus = 'Processing file...'
+  let testCertIssuers: string[] = []
+
+  // Extract both subjects and issuers from test certificates
+  // We need both to match against different certificate chain scenarios
+  function extractTestCertIdentifiers(certs: string[]): string[] {
+    console.log('📜 Extracting identifiers from', certs.length, 'certificates')
+    const identifiers: string[] = []
+    for (const cert of certs) {
+      try {
+        // Use the Web Crypto X509Certificate API
+        const x509 = new X509Certificate(cert)
+        // Add both subject and issuer as they might be used in different contexts
+        identifiers.push(x509.subject)
+        identifiers.push(x509.issuer)
+        console.log('📜 Extracted test cert subject:', x509.subject)
+        console.log('📜 Extracted test cert issuer:', x509.issuer)
+      } catch (err) {
+        console.warn('Failed to parse test certificate:', err, cert.substring(0, 100))
+      }
+    }
+    console.log('📜 All test cert identifiers:', identifiers)
+    return identifiers
+  }
+
+  // Update identifier list when test certificates change
+  $: {
+    console.log('📜 Test certificates changed, count:', testCertificates.length)
+    testCertIssuers = extractTestCertIdentifiers(testCertificates)
+  }
 
   // Test trust list fetching on component mount
   onMount(() => {
@@ -43,10 +75,15 @@
       }
     }
 
-    // Check if info section was dismissed in this session
-    const infoDismissed = sessionStorage.getItem('infoSectionDismissed')
-    if (infoDismissed === 'true') {
-      infoSectionDismissed = true
+    // Check if sections were expanded in this session
+    const infoExpanded = sessionStorage.getItem('infoSectionExpanded')
+    if (infoExpanded === 'true') {
+      infoSectionExpanded = true
+    }
+
+    const testCertExpanded = sessionStorage.getItem('testCertSectionExpanded')
+    if (testCertExpanded === 'true') {
+      testCertSectionExpanded = true
     }
 
     // Prevent default drag/drop behavior on the entire window
@@ -106,10 +143,22 @@
 
     try {
       console.log('⏳ Starting file processing...')
+      processingStatus = 'Initializing C2PA SDK...'
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      processingStatus = 'Fetching trust lists...'
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      processingStatus = 'Validating signatures...'
       if (testCertificates.length > 0) {
         console.log('⚠️  Using', testCertificates.length, 'test certificate(s)')
       }
+
       report = await processFile(file, testCertificates)
+
+      processingStatus = 'Building report...'
+      await new Promise(resolve => setTimeout(resolve, 100))
+
       console.log('✅ File processed successfully:', report)
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred processing the file'
@@ -117,6 +166,7 @@
     } finally {
       console.log('🏁 Processing complete. Report:', !!report, 'Error:', !!error)
       processing = false
+      processingStatus = 'Processing file...'
     }
   }
 
@@ -158,8 +208,10 @@
   }
 
   async function handleCertificatesUpdated(event: CustomEvent<string[]>) {
+    console.log('🔔 handleCertificatesUpdated called with', event.detail.length, 'certificates')
     testCertificates = event.detail
-    
+    console.log('🔔 testCertificates is now', testCertificates.length)
+
     // If we're currently viewing a report, reprocess the file with updated certificates
     if (selectedFile && report) {
       console.log('🔄 Reprocessing file with updated certificates...')
@@ -237,9 +289,20 @@
     }
   }
 
-  function dismissInfoSection() {
-    infoSectionDismissed = true
-    sessionStorage.setItem('infoSectionDismissed', 'true')
+  function toggleInfoSection() {
+    infoSectionExpanded = !infoSectionExpanded
+    sessionStorage.setItem('infoSectionExpanded', String(infoSectionExpanded))
+  }
+
+  function toggleTestCertSection() {
+    testCertSectionExpanded = !testCertSectionExpanded
+    sessionStorage.setItem('testCertSectionExpanded', String(testCertSectionExpanded))
+  }
+
+  // Auto-expand test cert section when test mode is enabled
+  $: if (testModeEnabled && !testCertSectionExpanded) {
+    testCertSectionExpanded = true
+    sessionStorage.setItem('testCertSectionExpanded', 'true')
   }
 </script>
 
@@ -293,8 +356,28 @@
           {/if}
         </div>
 
-        <!-- Right: Dark mode toggle + C2PA Logo -->
+        <!-- Right: Test Mode Badge + Dark mode toggle + C2PA Logo -->
         <div class="flex items-center justify-end gap-3">
+          {#if testModeEnabled}
+            <button
+              on:click={async () => {
+                testCertSectionExpanded = true
+                sessionStorage.setItem('testCertSectionExpanded', 'true')
+                if (!report) {
+                  // Scroll to test cert section
+                  await new Promise(resolve => setTimeout(resolve, 100))
+                  document.getElementById('test-cert-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                }
+              }}
+              class="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-600 dark:bg-amber-500 text-white rounded-lg hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors text-sm font-semibold shadow-sm"
+              title="Test mode active - click to manage certificates"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+              TEST MODE ({testCertificates.length})
+            </button>
+          {/if}
           <button
             on:click={toggleDarkMode}
             class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 group"
@@ -323,66 +406,59 @@
 
   {#if !report && !processing}
     <!-- Hero Section -->
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center mb-16 mt-12">
-      <div class="mb-12 animate-fade-in">
-        <h2 class="text-5xl sm:text-6xl font-bold text-gray-900 dark:text-white mb-6 leading-tight">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center mb-12 mt-10">
+      <div class="mb-10 animate-fade-in">
+        <h2 class="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">
           Content Credentials<br />
           <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
             Validator & Testing Tool
           </span>
         </h2>
-        <p class="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-          Verify C2PA manifests and test against the official trust lists — all in your browser
+        <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+          Verify C2PA manifests against official trust lists. All processing in your browser.
         </p>
       </div>
 
-      {#if !infoSectionDismissed}
-        <!-- What are Content Credentials -->
-        <div class="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-8 mb-10 text-left shadow-sm hover:shadow-md transition-shadow duration-300 relative">
-          <!-- Close button -->
-          <button
-            on:click={dismissInfoSection}
-            class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-all"
-            aria-label="Dismiss"
-            title="Dismiss this message"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+      <!-- Collapsible Info Section -->
+      <div class="mb-6">
+        <button
+          on:click={toggleInfoSection}
+          class="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-900 dark:text-blue-100 rounded-lg transition-colors text-sm font-semibold"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          What is this all about?
+          <svg class="w-4 h-4 transition-transform {infoSectionExpanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
 
-          <div class="flex items-start gap-3 mb-4">
-            <div class="flex-shrink-0 w-10 h-10 bg-blue-600 dark:bg-blue-500 rounded-lg flex items-center justify-center">
-              <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+        {#if infoSectionExpanded}
+          <div class="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-8 mt-4 text-left shadow-sm animate-fade-in">
+            <p class="text-gray-700 dark:text-gray-300 mb-4 leading-relaxed">
+              Content Credentials from The Coalition for Content Provenance and Authenticity (C2PA) is the technical standard for digital provenance. It provides verifiable assertions about the origin and history of digital content including images, video, audio, and documents.
+            </p>
+            <div class="grid sm:grid-cols-3 gap-4">
+              <div class="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4 backdrop-blur-sm">
+                <div class="text-3xl mb-2">🔒</div>
+                <h4 class="font-semibold text-gray-900 dark:text-white mb-1">Validate Signatures</h4>
+                <p class="text-sm text-gray-600 dark:text-gray-400">Against official C2PA Trust Lists</p>
+              </div>
+              <div class="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4 backdrop-blur-sm">
+                <div class="text-3xl mb-2">📊</div>
+                <h4 class="font-semibold text-gray-900 dark:text-white mb-1">View Manifest Details</h4>
+                <p class="text-sm text-gray-600 dark:text-gray-400">Actions, ingredients, and assertions</p>
+              </div>
+              <div class="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4 backdrop-blur-sm">
+                <div class="text-3xl mb-2">🔐</div>
+                <h4 class="font-semibold text-gray-900 dark:text-white mb-1">100% Client-Side</h4>
+                <p class="text-sm text-gray-600 dark:text-gray-400">Files never leave your device</p>
+              </div>
             </div>
-            <div>
-              <h3 class="text-xl font-bold text-blue-900 dark:text-blue-100">What is this all about?</h3>
-            </div>
           </div>
-        <p class="text-gray-700 dark:text-gray-300 mb-4 leading-relaxed">
-          Content Credentials from The Coalition for Content Provenance and Authenticity (C2PA) is the technical standard for digital provenance. It provides verifiable assertions about the origin and history of digital content including images, video, audio, and documents.
-        </p>
-        <div class="grid sm:grid-cols-3 gap-4">
-          <div class="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4 backdrop-blur-sm">
-            <div class="text-3xl mb-2">🔒</div>
-            <h4 class="font-semibold text-gray-900 dark:text-white mb-1">Validate Signatures</h4>
-            <p class="text-sm text-gray-600 dark:text-gray-400">Against official C2PA Trust Lists</p>
-          </div>
-          <div class="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4 backdrop-blur-sm">
-            <div class="text-3xl mb-2">📊</div>
-            <h4 class="font-semibold text-gray-900 dark:text-white mb-1">View Manifest Details</h4>
-            <p class="text-sm text-gray-600 dark:text-gray-400">Actions, ingredients, and assertions</p>
-          </div>
-          <div class="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4 backdrop-blur-sm">
-            <div class="text-3xl mb-2">🔐</div>
-            <h4 class="font-semibold text-gray-900 dark:text-white mb-1">100% Client-Side</h4>
-            <p class="text-sm text-gray-600 dark:text-gray-400">Files never leave your device</p>
-          </div>
-        </div>
-        </div>
-      {/if}
+        {/if}
+      </div>
 
       {#if error}
         <div class="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-2 border-red-300 dark:border-red-700 rounded-2xl p-8 mb-10 shadow-lg text-left">
@@ -405,33 +481,60 @@
       {/if}
 
       <!-- Upload Area -->
-      <div class="mb-10">
+      <div class="mb-6">
         <FileUpload on:fileselect={handleFileSelect} compact={false} />
       </div>
 
-      <!-- Test Certificate Manager -->
-      <div class="mb-8">
-        <CertificateManager
-          bind:testCertificates={testCertificates}
-          bind:testModeEnabled={testModeEnabled}
-          bind:testRootLoaded={testRootLoaded}
-          on:certificatesUpdated={handleCertificatesUpdated}
-          on:testModeChanged={handleTestModeChanged}
-        />
+      <!-- Collapsible Test Certificate Manager -->
+      <div class="mb-8" id="test-cert-section">
+        <button
+          on:click={toggleTestCertSection}
+          class="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-100 rounded-lg transition-colors text-sm font-semibold"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+          ⚙️ Advanced: Test Certificates
+          {#if testCertificates.length > 0}
+            <span class="px-2 py-0.5 bg-amber-600 dark:bg-amber-500 text-white rounded-full text-xs font-bold">
+              {testCertificates.length}
+            </span>
+          {/if}
+          <svg class="w-4 h-4 transition-transform {testCertSectionExpanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {#if testCertSectionExpanded}
+          <div class="mt-4 animate-fade-in">
+            <CertificateManager
+              bind:testCertificates={testCertificates}
+              bind:testModeEnabled={testModeEnabled}
+              bind:testRootLoaded={testRootLoaded}
+              on:certificatesUpdated={handleCertificatesUpdated}
+              on:testModeChanged={handleTestModeChanged}
+            />
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
 
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
     {#if processing}
-      <div class="flex flex-col items-center gap-6 py-20">
-        <div class="relative">
+      <div
+        class="flex flex-col items-center gap-6 py-20"
+        aria-live="polite"
+        aria-busy="true"
+        aria-label="Processing file"
+      >
+        <div class="relative" aria-hidden="true">
           <div class="w-20 h-20 border-4 border-blue-200 dark:border-blue-800 rounded-full"></div>
           <div class="w-20 h-20 border-4 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
         </div>
         <div class="text-center">
-          <p class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Processing file...</p>
-          <p class="text-sm text-gray-600 dark:text-gray-400">Validating C2PA manifest and signatures</p>
+          <p class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">{processingStatus}</p>
+          <p class="text-sm text-gray-600 dark:text-gray-400">Please wait while we validate your file</p>
         </div>
       </div>
     {/if}
@@ -440,6 +543,7 @@
       <ReportViewer
         {report}
         {usedTestCertificates}
+        {testCertIssuers}
         file={selectedFile}
         bind:testCertificates={testCertificates}
         bind:testModeEnabled={testModeEnabled}

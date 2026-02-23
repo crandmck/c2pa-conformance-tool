@@ -130,32 +130,79 @@ export async function processFile(file: File, testCertificates: string[] = []): 
       fetchITL()
     ])
 
-    // Add test certificates if provided
-    let trustAnchors = mainTrustList
-    if (testCertificates.length > 0) {
-      console.log('⚠️  Adding', testCertificates.length, 'test certificate(s) to trust list')
-      trustAnchors = trustAnchors + '\n' + testCertificates.join('\n')
-    }
-
-    console.log('Step 1: Validating with main trust list...')
-    const mainSettings: SettingsContext = {
+    console.log('Step 1: Validating with official trust list only...')
+    const officialSettings: SettingsContext = {
       verify: {
         verifyTrust: true,
         verifyAfterReading: true
       },
       trust: {
-        trustAnchors
+        trustAnchors: mainTrustList
       }
     }
 
-    // First validation with main trust list
-    const reader1 = await c2pa.reader.fromBlob(file.type, file, mainSettings)
+    // First validation with official trust list only (no test certs)
+    const reader1 = await c2pa.reader.fromBlob(file.type, file, officialSettings)
     if (!reader1) {
       throw new Error('No C2PA manifest found in this file')
     }
 
-    const manifestStore = await reader1.manifestStore()
+    const officialManifestStore = await reader1.manifestStore()
     await reader1.free()
+
+    // Check if signature is untrusted with official TL
+    const officialUntrusted = officialManifestStore.validation_results?.activeManifest?.failure?.some(
+      (status: ValidationStatus) => status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_UNTRUSTED
+    )
+
+    console.log('Official TL validation results:', {
+      isUntrusted: officialUntrusted,
+      success: officialManifestStore.validation_results?.activeManifest?.success?.map((s: ValidationStatus) => s.code),
+      failure: officialManifestStore.validation_results?.activeManifest?.failure?.map((f: ValidationStatus) => f.code)
+    })
+
+    // Now validate with test certificates if provided
+    let manifestStore = officialManifestStore
+    let usedTestCerts = false
+
+    if (testCertificates.length > 0) {
+      console.log('Step 2: Validating with test certificates added...')
+      const testSettings: SettingsContext = {
+        verify: {
+          verifyTrust: true,
+          verifyAfterReading: true
+        },
+        trust: {
+          trustAnchors: mainTrustList + '\n' + testCertificates.join('\n')
+        }
+      }
+
+      const reader2 = await c2pa.reader.fromBlob(file.type, file, testSettings)
+      if (reader2) {
+        const testManifestStore = await reader2.manifestStore()
+        await reader2.free()
+
+        const testUntrusted = testManifestStore.validation_results?.activeManifest?.failure?.some(
+          (status: ValidationStatus) => status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_UNTRUSTED
+        )
+
+        console.log('Test cert validation results:', {
+          isUntrusted: testUntrusted,
+          success: testManifestStore.validation_results?.activeManifest?.success?.map((s: ValidationStatus) => s.code),
+          failure: testManifestStore.validation_results?.activeManifest?.failure?.map((f: ValidationStatus) => f.code)
+        })
+
+        // If it was untrusted with official TL but trusted with test certs, test certs were used
+        if (officialUntrusted && !testUntrusted) {
+          console.log('✅ Test certificates made the difference - signature now trusted')
+          usedTestCerts = true
+          manifestStore = testManifestStore
+        } else {
+          console.log('ℹ️  Test certificates loaded but not needed for validation')
+          // Use official validation results
+        }
+      }
+    }
 
     // Check if signature is untrusted
     const isUntrusted = manifestStore.validation_results?.activeManifest?.failure?.some(
@@ -181,7 +228,7 @@ export async function processFile(file: File, testCertificates: string[] = []): 
           verifyAfterReading: true
         },
         trust: {
-          trustAnchors: trustAnchors + '\n' + itl
+          trustAnchors: mainTrustList + '\n' + itl
         }
       }
 
@@ -232,6 +279,7 @@ export async function processFile(file: File, testCertificates: string[] = []): 
     return {
       ...finalManifestStore,
       usedITL,
+      usedTestCerts,
       _conformanceToolVersion: {
         commit: VERSION_INFO.sha,
         shortCommit: VERSION_INFO.shortSha,

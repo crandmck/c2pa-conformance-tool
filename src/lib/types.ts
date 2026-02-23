@@ -15,6 +15,7 @@ export type { ManifestStore, ValidationStatus, Manifest, Ingredient }
 /** Report returned by processFile: manifest store plus conformance-tool metadata */
 export interface ConformanceReport extends ManifestStore {
   usedITL?: boolean
+  usedTestCerts?: boolean
   _conformanceToolVersion?: {
     commit: string
     shortCommit: string
