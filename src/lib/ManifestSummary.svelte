@@ -5,8 +5,10 @@
   export let manifest: Manifest | null = null
   export let ingredients: Ingredient[] = []
   export let mimeType: string = ''
+  export let usedITL: boolean = false
+  export let isTrusted: boolean = true
 
-  $: summary = generateManifestSummary(manifest, ingredients, mimeType)
+  $: summary = generateManifestSummary(manifest, ingredients, mimeType, usedITL, isTrusted)
 </script>
 
 {#if summary.sentence}
