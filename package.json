@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node scripts/generate-version.js && vite",
     "build": "node scripts/generate-version.js && vite build",
+    "build:local-wasm": "node scripts/build-local-wasm.mjs",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest",
