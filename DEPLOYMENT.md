@@ -6,20 +6,28 @@ This is a **100% static site** with no server-side code. All C2PA processing hap
 
 ### 1. GitHub Pages (Recommended)
 
-**Setup:**
-1. Push your code to GitHub
-2. Go to repository Settings → Pages
-3. Under "Build and deployment":
-   - Source: **GitHub Actions**
-4. Push to `main` branch - auto-deploys!
+Deploy by building locally and pushing the built site to the `gh-pages` branch. No build runs in CI, so you avoid environment/base-path issues.
 
-**URL:** Open **`https://<username>.github.io/c2pa-conformance-tool/`** in your browser (use your GitHub username). You don’t need to add `index.html`—GitHub Pages serves it at that path. The app is built with this base path so JS, CSS, and WASM load correctly.
+**One-time setup:**
+1. Push your code to GitHub.
+2. Go to **Settings → Pages**.
+3. Under "Build and deployment", set:
+   - **Source:** Deploy from a **branch**
+   - **Branch:** `gh-pages` / `/(root)`
+4. Save.
+
+**Deploy (whenever you want to publish):**
+```bash
+npm run deploy
+```
+This runs `npm run build` (with the correct base path for GitHub Pages) and pushes the contents of `dist/` to the `gh-pages` branch. No GitHub Action is used.
+
+**URL:** **`https://<username>.github.io/c2pa-conformance-tool/`** (use your GitHub username; no `index.html` needed).
 
 **Features:**
-- ✅ Free hosting
-- ✅ HTTPS included
-- ✅ Auto-deploy on push
-- ✅ Custom domain support
+- ✅ Free hosting, HTTPS, custom domain
+- ✅ Same build locally and on the site (no CI surprises)
+- ✅ No Actions or build step in the repo
 
 ---
 
@@ -74,8 +82,11 @@ npm install
 # Build for production
 npm run build
 
-# Preview the build
+# Preview the build (open http://localhost:4173/c2pa-conformance-tool/)
 npm run preview
+
+# Build and deploy to GitHub Pages (pushes dist/ to gh-pages branch)
+npm run deploy
 ```
 
 **Output:** `dist/` folder contains all static files

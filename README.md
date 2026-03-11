@@ -75,18 +75,12 @@ npm run preview
 
 ### Quick Deploy to GitHub Pages
 
-1. Push your code to GitHub
-2. Go to **Settings → Pages**
-3. Set source to **GitHub Actions**
-4. Push to `main` branch - auto-deploys!
+1. One-time: In repo **Settings → Pages**, set source to **Deploy from a branch**, branch **gh-pages** / root.
+2. From your machine: **`npm run deploy`** (builds and pushes `dist/` to `gh-pages`).
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions for:
-- GitHub Pages (with included workflow)
-- Vercel
-- Netlify
-- Cloudflare Pages
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for full instructions and other platforms (Vercel, Netlify, Cloudflare Pages).
 
-**Live URL:** `https://<username>.github.io/<repo-name>/`
+**Live URL:** `https://<username>.github.io/c2pa-conformance-tool/`
 
 ## Project Structure
 
