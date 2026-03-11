@@ -220,10 +220,31 @@ const MIME_TYPE_MAP: Record<string, string> = {
   'audio/m4a': 'audio/mp4',
   'video/x-m4v': 'video/mp4',
   'video/quicktime': 'video/mp4',
+  'image/dng': 'image/x-adobe-dng',
+}
+
+// Fallback MIME types by file extension, for when the browser can't determine the type
+const EXTENSION_MIME_MAP: Record<string, string> = {
+  'dng': 'image/x-adobe-dng',
+  'arw': 'image/x-sony-arw',
+  'cr2': 'image/x-canon-cr2',
+  'cr3': 'image/x-canon-cr3',
+  'nef': 'image/x-nikon-nef',
+  'orf': 'image/x-olympus-orf',
+  'rw2': 'image/x-panasonic-rw2',
+}
+
+function resolveMimeType(file: File): string {
+  const mapped = MIME_TYPE_MAP[file.type]
+  if (mapped) return mapped
+  if (file.type && file.type !== 'application/octet-stream') return file.type
+  // Fall back to extension-based detection
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  return EXTENSION_MIME_MAP[ext] ?? file.type
 }
 
 export async function processFile(file: File, testCertificates: string[] = []): Promise<ConformanceReport> {
-  const mimeType = MIME_TYPE_MAP[file.type] ?? file.type
+  const mimeType = resolveMimeType(file)
   console.log('🔍 Starting file processing for:', file.name, 'Type:', file.type, mimeType !== file.type ? `(remapped to ${mimeType})` : '')
 
   // Initialize C2PA SDK if not already initialized
