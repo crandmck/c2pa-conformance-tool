@@ -44,6 +44,12 @@
   let copyTimeout: ReturnType<typeof setTimeout> | null = null
   let mediaUrl: string | null = null
   let mediaType: 'image' | 'video' | 'audio' | 'document' | 'unknown' = 'unknown'
+
+  // Only these image types can be rendered by browsers natively
+  const BROWSER_PREVIEWABLE_IMAGES = new Set([
+    'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+    'image/avif', 'image/svg+xml', 'image/bmp', 'image/ico', 'image/x-icon',
+  ])
   let fileInput: HTMLInputElement
   let validationStatus: ValidationStatusItem[] = []
   let expandedIngredients: Set<number> = new Set()
@@ -126,7 +132,7 @@
 
     // Determine media type
     if (file.type.startsWith('image/')) {
-      mediaType = 'image'
+      mediaType = BROWSER_PREVIEWABLE_IMAGES.has(file.type) ? 'image' : 'unknown'
     } else if (file.type.startsWith('video/')) {
       mediaType = 'video'
     } else if (file.type.startsWith('audio/')) {
@@ -723,10 +729,10 @@
                 </div>
               {:else}
                 <div class="text-center">
-                  <div class="w-20 h-20 mx-auto bg-gray-400 dark:bg-gray-600 rounded-2xl flex items-center justify-center text-white text-4xl mb-6 shadow-lg">
-                    📦
-                  </div>
-                  <p class="text-gray-600 dark:text-gray-400 text-lg">Preview not available</p>
+                  <p class="text-gray-700 dark:text-gray-200 text-lg font-semibold mb-2">Preview not available</p>
+                  <p class="text-gray-500 dark:text-gray-400 text-sm">
+                    {file.type || file.name.split('.').pop()?.toUpperCase() + ' file' || 'This file type'} cannot be displayed in the browser.
+                  </p>
                 </div>
               {/if}
             </div>
