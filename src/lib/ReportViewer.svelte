@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onDestroy } from 'svelte'
   import type { ValidationStatus } from '@contentauth/c2pa-web'
+  import hljs from 'highlight.js'
   import CertificateManager from './CertificateManager.svelte'
   import ManifestSummary from './ManifestSummary.svelte'
   import type { ConformanceReport, ValidationStatusItem, AssertionSummaryItem, CrJsonManifestEntry } from './types'
@@ -12,6 +13,17 @@
     getActiveManifestValidationStatus
   } from './crjson'
   import { VALIDATION_STATUS } from './constants'
+
+  $: rawJsonHighlighted = (() => {
+    try {
+      return hljs.highlight(JSON.stringify(report, null, 2), { language: 'json' }).value
+    } catch {
+      return ''
+    }
+  })()
+  $: if (rawJsonCodeEl && rawJsonHighlighted) {
+    rawJsonCodeEl.innerHTML = rawJsonHighlighted
+  }
 
   export let report: ConformanceReport
   export let usedTestCertificates = false
@@ -27,6 +39,7 @@
   }>()
 
   let showRaw = false
+  let rawJsonCodeEl: HTMLElement | null = null
   let copied = false
   let copyTimeout: ReturnType<typeof setTimeout> | null = null
   let mediaUrl: string | null = null
@@ -646,7 +659,7 @@
         </div>
         <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Raw JSON Report</h3>
       </div>
-      <pre class="bg-gray-900 dark:bg-black border-2 border-gray-700 dark:border-gray-600 rounded-xl p-6 overflow-x-auto text-sm leading-relaxed text-gray-100 shadow-inner">{JSON.stringify(report, null, 2)}</pre>
+      <pre class="hljs bg-gray-900 dark:bg-black border-2 border-gray-700 dark:border-gray-600 rounded-xl p-6 overflow-x-auto text-sm leading-relaxed shadow-inner"><code class="language-json" bind:this={rawJsonCodeEl}></code></pre>
     </div>
   {:else}
     <!-- Media Preview and Validation Status -->
