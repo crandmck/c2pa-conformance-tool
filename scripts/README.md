@@ -5,7 +5,7 @@
 Builds a browser-targeted wasm reader from the local `../c2pa-rs` checkout and writes the generated loader plus `.wasm` binary to `public/local-c2pa/`.
 
 ### What it does:
-- Uses `wasm-pack` to build the wrapper crate in [`/Users/lrosenth/Development/c2pa-conformance-tool/wasm`](/Users/lrosenth/Development/c2pa-conformance-tool/wasm)
+- Uses `wasm-pack` to build the wrapper crate in the project's `wasm/` directory
 - Links that wrapper crate against the local `../c2pa-rs/sdk` source tree
 - Generates `public/local-c2pa/c2pa_local.js` and `public/local-c2pa/c2pa_local_bg.wasm`
 
