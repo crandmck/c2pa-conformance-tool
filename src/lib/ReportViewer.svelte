@@ -2,7 +2,6 @@
   import { createEventDispatcher, onDestroy } from 'svelte'
   import type { ValidationStatus } from '@contentauth/c2pa-web'
   import hljs from 'highlight.js'
-  import CertificateManager from './CertificateManager.svelte'
   import ManifestSummary from './ManifestSummary.svelte'
   import type { ConformanceReport, ValidationStatusItem, AssertionSummaryItem, CrJsonManifestEntry } from './types'
   import {
@@ -28,14 +27,9 @@
   export let report: ConformanceReport
   export let usedTestCertificates = false
   export let file: File | null = null
-  export let testCertificates: string[] = []
-  export let testModeEnabled = false
-  export let testRootLoaded = false
 
   const dispatch = createEventDispatcher<{
     newfile: void
-    certificatesUpdated: string[]
-    testModeChanged: { enabled: boolean; rootLoaded: boolean }
   }>()
 
   let showRaw = false
@@ -545,14 +539,6 @@
               </svg>
               ITL Validated
             </span>
-            {#if testModeEnabled}
-              <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 rounded-full text-xs font-semibold">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                </svg>
-                Test Mode Active
-              </span>
-            {/if}
           </div>
         {:else if actuallyUsedTestCert && isTrusted}
           <div class="mt-2">
@@ -561,15 +547,6 @@
                 <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
               </svg>
               Test Mode
-            </span>
-          </div>
-        {:else if testModeEnabled && isTrusted}
-          <div class="mt-2">
-            <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 rounded-full text-xs font-semibold">
-              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-              </svg>
-              Test Mode Active
             </span>
           </div>
         {/if}
@@ -667,8 +644,6 @@
         <span class="text-gray-300 dark:text-gray-600 select-none">·</span>
         <a href="#ingredients" class="text-sm px-2 py-1 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Ingredients ({ingredientsList.length})</a>
       {/if}
-      <span class="text-gray-300 dark:text-gray-600 select-none">·</span>
-      <a href="#test-certificates" class="text-sm px-2 py-1 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Test Certs</a>
     </div>
   {/if}
 
@@ -1291,18 +1266,4 @@
     </div>
   {/if}
 
-  <!-- Test Certificates Section -->
-  <div class="mt-8 pt-8 border-t-2 border-gray-200 dark:border-gray-700" id="test-certificates">
-    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Test Certificates</h3>
-    <p class="text-gray-600 dark:text-gray-400 mb-6">
-      Add or remove test certificates to revalidate this file. Changes will immediately regenerate the report with updated validation results.
-    </p>
-    <CertificateManager
-      bind:testCertificates={testCertificates}
-      bind:testModeEnabled={testModeEnabled}
-      bind:testRootLoaded={testRootLoaded}
-      on:certificatesUpdated={(e) => dispatch('certificatesUpdated', e.detail)}
-      on:testModeChanged={(e) => dispatch('testModeChanged', e.detail)}
-    />
-  </div>
 </div>
