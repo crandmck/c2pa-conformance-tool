@@ -2,7 +2,6 @@
   import { createEventDispatcher, onDestroy } from 'svelte'
   import type { ValidationStatus } from '@contentauth/c2pa-web'
   import hljs from 'highlight.js'
-  import CertificateManager from './CertificateManager.svelte'
   import ManifestSummary from './ManifestSummary.svelte'
   import type { ConformanceReport, ValidationStatusItem, AssertionSummaryItem, CrJsonManifestEntry } from './types'
   import {
@@ -28,14 +27,9 @@
   export let report: ConformanceReport
   export let usedTestCertificates = false
   export let file: File | null = null
-  export let testCertificates: string[] = []
-  export let testModeEnabled = false
-  export let testRootLoaded = false
 
   const dispatch = createEventDispatcher<{
     newfile: void
-    certificatesUpdated: string[]
-    testModeChanged: { enabled: boolean; rootLoaded: boolean }
   }>()
 
   let showRaw = false
@@ -636,8 +630,6 @@
         <span class="text-gray-300 dark:text-gray-600 select-none">·</span>
         <a href="#ingredients" class="text-sm px-2 py-1 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Ingredients ({ingredientsList.length})</a>
       {/if}
-      <span class="text-gray-300 dark:text-gray-600 select-none">·</span>
-      <a href="#test-certificates" class="text-sm px-2 py-1 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Test Certs</a>
     </div>
   {/if}
 
@@ -1214,18 +1206,4 @@
     </div>
   {/if}
 
-  <!-- Test Certificates Section -->
-  <div class="mt-8 pt-8 border-t-2 border-gray-200 dark:border-gray-700" id="test-certificates">
-    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Test Certificates</h3>
-    <p class="text-gray-600 dark:text-gray-400 mb-6">
-      Add or remove test certificates to revalidate this file. Changes will immediately regenerate the report with updated validation results.
-    </p>
-    <CertificateManager
-      bind:testCertificates={testCertificates}
-      bind:testModeEnabled={testModeEnabled}
-      bind:testRootLoaded={testRootLoaded}
-      on:certificatesUpdated={(e) => dispatch('certificatesUpdated', e.detail)}
-      on:testModeChanged={(e) => dispatch('testModeChanged', e.detail)}
-    />
-  </div>
 </div>
