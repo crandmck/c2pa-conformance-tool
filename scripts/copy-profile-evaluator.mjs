@@ -15,22 +15,31 @@ import { fileURLToPath } from 'node:url'
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(scriptDir, '..')
-const sourceDir = resolve(repoRoot, '../profile-evaluator-rs/ui/pkg')
+const siblingRoot = resolve(repoRoot, '../profile-evaluator-rs')
 const outDir = resolve(repoRoot, 'public/profile-evaluator')
 
-if (!existsSync(sourceDir)) {
+// Try ui/pkg first (standard layout), then pkg at repo root
+const candidateDirs = [
+  resolve(siblingRoot, 'ui/pkg'),
+  resolve(siblingRoot, 'pkg'),
+]
+const sourceDir = candidateDirs.find((d) => existsSync(d))
+
+if (!sourceDir) {
   console.error(
-    `Profile evaluator pkg not found at ${sourceDir}\n` +
-      'Build it first in the profile-evaluator-rs repo (e.g. wasm-pack build in ui/) then run this script.'
+    `Profile evaluator pkg not found. Looked in:\n` +
+      candidateDirs.map((d) => `  - ${d}`).join('\n') +
+      '\n\nBuild it first in the profile-evaluator-rs repo (e.g. wasm-pack build in ui/ or ./scripts/build-wasm.sh) then run this script.'
   )
   process.exit(1)
 }
 
-const requiredFile = resolve(sourceDir, 'profile_evaluator_rs.js')
-if (!existsSync(requiredFile)) {
+const requiredFiles = ['profile_evaluator_rs.js', 'profile_evaluator_rs_bg.wasm']
+const missing = requiredFiles.filter((f) => !existsSync(resolve(sourceDir, f)))
+if (missing.length > 0) {
   console.error(
-    `Expected profile_evaluator_rs.js in ${sourceDir}\n` +
-      'Ensure wasm-pack build was run in profile-evaluator-rs/ui with the correct crate name.'
+    `Expected ${missing.join(' and ')} in ${sourceDir}\n` +
+      'Ensure wasm-pack build was run in profile-evaluator-rs with the correct crate name.'
   )
   process.exit(1)
 }
@@ -39,4 +48,13 @@ rmSync(outDir, { recursive: true, force: true })
 mkdirSync(outDir, { recursive: true })
 cpSync(sourceDir, outDir, { recursive: true })
 
+// Verify both required files are present in output
+const outMissing = requiredFiles.filter((f) => !existsSync(resolve(outDir, f)))
+if (outMissing.length > 0) {
+  console.error(`Copy failed: missing ${outMissing.join(', ')} in ${outDir}`)
+  process.exit(1)
+}
+
 console.log(`Profile evaluator copied to ${outDir}`)
+console.log(`  - profile_evaluator_rs.js`)
+console.log(`  - profile_evaluator_rs_bg.wasm`)
