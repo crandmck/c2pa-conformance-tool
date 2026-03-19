@@ -276,7 +276,7 @@
   class:pointer-events-none={globalDragOver}
 >
   {#if globalDragOver}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-600 to-purple-600 dark:from-blue-700 dark:to-purple-700 bg-opacity-98 backdrop-blur-md transition-all duration-300 animate-fade-in">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-600 to-purple-600 dark:from-gray-700 dark:to-gray-800 bg-opacity-98 backdrop-blur-md transition-all duration-300 animate-fade-in">
       <div class="text-center text-white">
         <div class="mb-8 animate-bounce">
           <div class="inline-flex items-center justify-center w-32 h-32 bg-white/20 backdrop-blur-sm rounded-3xl shadow-2xl">
@@ -307,7 +307,7 @@
           {#if report || processing || currentPage !== 'main'}
             <button
               on:click={resetToHome}
-              class="text-xl font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 cursor-pointer"
+              class="text-xl font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-gray-300 transition-colors duration-200 cursor-pointer"
               aria-label="Return to home"
             >
               C2PA Verify
@@ -322,7 +322,7 @@
           {#if testModeEnabled}
             <button
               on:click={() => navigateTo('test-certificates')}
-              class="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-600 dark:bg-amber-500 text-white rounded-lg hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors text-sm font-semibold shadow-sm"
+              class="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-600 dark:bg-gray-600 text-white rounded-lg hover:bg-amber-700 dark:hover:bg-gray-500 transition-colors text-sm font-semibold shadow-sm"
               title="Test mode active - click to manage certificates"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -378,17 +378,17 @@
                   on:click={() => navigateTo('test-certificates')}
                   class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left"
                 >
-                  <svg class="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 3l6 0" /><path d="M10 9l4 0" /><path d="M10 3v6l-4 11a.7 .7 0 0 0 .5 1h11a.7 .7 0 0 0 .5 -1l-4 -11v-6" /></svg>
+                  <svg class="w-4 h-4 text-amber-600 dark:text-gray-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 3l6 0" /><path d="M10 9l4 0" /><path d="M10 3v6l-4 11a.7 .7 0 0 0 .5 1h11a.7 .7 0 0 0 .5 -1l-4 -11v-6" /></svg>
                   <span>Test Certificates</span>
                   {#if testCertificates.length > 0}
-                    <span class="ml-auto px-1.5 py-0.5 bg-amber-600 dark:bg-amber-500 text-white rounded-full text-xs font-bold">{testCertificates.length}</span>
+                    <span class="ml-auto px-1.5 py-0.5 bg-amber-600 dark:bg-gray-600 text-white rounded-full text-xs font-bold">{testCertificates.length}</span>
                   {/if}
                 </button>
                 <button
                   on:click={() => navigateTo('asset-profiles')}
                   class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left"
                 >
-                  <svg class="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2" /><path d="M9 9l1 0" /><path d="M9 13l6 0" /><path d="M9 17l6 0" /></svg>
+                  <svg class="w-4 h-4 text-blue-600 dark:text-gray-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2" /><path d="M9 9l1 0" /><path d="M9 13l6 0" /><path d="M9 17l6 0" /></svg>
                   <span>Asset Profiles</span>
                   <span class="ml-auto text-xs text-gray-400 dark:text-gray-500">Soon</span>
                 </button>
@@ -446,8 +446,8 @@
         </p>
       </div>
       <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-12 text-center shadow-sm">
-        <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-50 dark:bg-blue-950 rounded-2xl mb-4">
-          <svg class="w-8 h-8 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-50 dark:bg-gray-800 rounded-2xl mb-4">
+          <svg class="w-8 h-8 text-blue-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         </div>
@@ -479,11 +479,9 @@
         <div class="mb-6">
           <button
             on:click={toggleInfoSection}
-            class="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-950 hover:bg-blue-200 dark:hover:bg-blue-900 text-blue-900 dark:text-blue-100 rounded-lg transition-colors text-sm font-semibold"
+            class="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-gray-800 hover:bg-blue-200 dark:hover:bg-gray-700 text-blue-900 dark:text-gray-100 rounded-lg transition-colors text-sm font-semibold"
           >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 9h.01" /><path d="M11 12h1v4h1" /></svg>
             What is this all about?
             <svg class="w-4 h-4 transition-transform {infoSectionExpanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -543,14 +541,14 @@
         {/if}
 
         {#if error}
-          <div class="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-2xl p-8 mb-10 shadow-sm text-left">
+          <div class="bg-red-50 dark:bg-gray-900 border border-red-200 dark:border-gray-700 rounded-2xl p-8 mb-10 shadow-sm text-left">
             <div class="flex items-start gap-4">
-              <div class="flex-shrink-0 w-12 h-12 bg-red-600 dark:bg-red-500 rounded-full flex items-center justify-center text-white text-2xl">
+              <div class="flex-shrink-0 w-12 h-12 bg-red-600 dark:bg-gray-600 rounded-full flex items-center justify-center text-white text-2xl">
                 ⚠
               </div>
               <div class="flex-1">
-                <h2 class="text-2xl font-bold text-red-700 dark:text-red-400 mb-3">Error Processing File</h2>
-                <p class="text-red-600 dark:text-red-300 leading-relaxed mb-4">{error}</p>
+                <h2 class="text-2xl font-bold text-red-700 dark:text-gray-300 mb-3">Error Processing File</h2>
+                <p class="text-red-600 dark:text-gray-300 leading-relaxed mb-4">{error}</p>
                 <button
                   on:click={resetToHome}
                   class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors"
@@ -578,8 +576,8 @@
           aria-label="Processing file"
         >
           <div class="relative" aria-hidden="true">
-            <div class="w-20 h-20 border-4 border-blue-200 dark:border-blue-800 rounded-full"></div>
-            <div class="w-20 h-20 border-4 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
+            <div class="w-20 h-20 border-4 border-blue-200 dark:border-gray-700 rounded-full"></div>
+            <div class="w-20 h-20 border-4 border-blue-600 dark:border-gray-400 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
           </div>
           <div class="text-center">
             <p class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">{processingStatus}</p>
@@ -606,20 +604,20 @@
         <div class="space-y-3 flex-1">
           <h3 class="font-bold text-gray-900 dark:text-gray-100 text-base mb-3">About This Tool</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed">
-            This tool validates C2PA manifests using the <a href="https://github.com/contentauth/c2pa-rs" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">c2pa-rs</a> SDK. All processing happens in your browser — files never leave your device.
+            This tool validates C2PA manifests using the <a href="https://github.com/contentauth/c2pa-rs" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-gray-400 hover:text-blue-700 dark:hover:text-gray-300 transition-colors">c2pa-rs</a> SDK. All processing happens in your browser — files never leave your device.
           </p>
         </div>
         <div class="space-y-3 flex-1">
           <h3 class="font-bold text-gray-900 dark:text-gray-100 text-base mb-3">Learn More</h3>
           <ul class="space-y-2">
             <li>
-              <a href="https://c2pa.org" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors inline-flex items-center gap-2 group">
+              <a href="https://c2pa.org" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-gray-400 hover:text-blue-700 dark:hover:text-gray-300 transition-colors inline-flex items-center gap-2 group">
                 <span>C2PA Specification</span>
                 <span class="transform group-hover:translate-x-1 transition-transform">→</span>
               </a>
             </li>
             <li>
-              <a href="https://c2pa.org/conformance" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors inline-flex items-center gap-2 group">
+              <a href="https://c2pa.org/conformance" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-gray-400 hover:text-blue-700 dark:hover:text-gray-300 transition-colors inline-flex items-center gap-2 group">
                 <span>Conformance Program</span>
                 <span class="transform group-hover:translate-x-1 transition-transform">→</span>
               </a>
