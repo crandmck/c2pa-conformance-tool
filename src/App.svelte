@@ -276,17 +276,15 @@
   class:pointer-events-none={globalDragOver}
 >
   {#if globalDragOver}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-600 to-purple-600 dark:from-gray-700 dark:to-gray-800 bg-opacity-98 backdrop-blur-md transition-all duration-300 animate-fade-in">
-      <div class="text-center text-white">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-100 dark:from-gray-700 dark:to-gray-800 bg-opacity-98 backdrop-blur-md transition-all duration-100">
+      <div class="text-center text-blue-900 dark:text-white">
         <div class="mb-8 animate-bounce">
-          <div class="inline-flex items-center justify-center w-32 h-32 bg-white/20 backdrop-blur-sm rounded-3xl shadow-2xl">
-            <svg class="w-20 h-20 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
+          <div class="inline-flex items-center justify-center w-32 h-32 bg-blue-900 dark:bg-gray-600 rounded-3xl shadow-2xl">
+            <svg class="w-20 h-20 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1" /><path d="M9 15l3 -3l3 3" /><path d="M12 12l0 9" /></svg>
           </div>
         </div>
-        <p class="text-5xl font-bold mb-3">Drop file to analyze</p>
-        <p class="text-2xl opacity-90">We'll validate it instantly</p>
+        <p class="text-3xl font-bold mb-3">Drop file to analyze</p>
+        <p class="text-xl opacity-90">We'll validate it instantly</p>
       </div>
     </div>
   {/if}
