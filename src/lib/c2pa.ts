@@ -3,7 +3,7 @@ import type { Settings, ValidationStatus } from '@contentauth/c2pa-web'
 import { VERSION_INFO } from './version'
 import type { ConformanceReport } from './types'
 import { VALIDATION_STATUS } from './constants'
-import { isCrJson, legacyToCrJson, type CrJson } from './crjson'
+import { isCrJson, legacyToCrJson, getActiveManifestValidationStatus, type CrJson } from './crjson'
 
 type ReaderHandle = {
   manifestStore: () => Promise<CrJson>
@@ -31,9 +31,11 @@ type ExtractedCrJsonResult = {
 
 const importModule = new Function('modulePath', 'return import(modulePath)') as (modulePath: string) => Promise<LocalC2paModule>
 
+type ITL = { allowed: string; anchors: string }
+
 let c2paInstance: C2paInstance | null = null
 let mainTrustListPem: string | null = null
-let itlTrustListPem: string | null = null
+let itl: ITL | null = null
 
 // Official C2PA trust list URLs
 const TRUST_LIST_URL = 'https://raw.githubusercontent.com/c2pa-org/conformance-public/main/trust-list/C2PA-TRUST-LIST.pem'
@@ -53,9 +55,10 @@ function toLocalSettingsJson(settings?: Settings): string | undefined {
       verify_after_reading: settings.verify?.verifyAfterReading ?? true,
       verify_trust: settings.verify?.verifyTrust ?? true,
     },
-    trust: settings.trust?.trustAnchors
+    trust: (settings.trust?.trustAnchors || settings.trust?.allowedList)
       ? {
-          trust_anchors: settings.trust.trustAnchors,
+          ...(settings.trust.trustAnchors ? { trust_anchors: settings.trust.trustAnchors } : {}),
+          ...(settings.trust.allowedList ? { allowed_list: settings.trust.allowedList } : {}),
         }
       : undefined,
   }
@@ -141,13 +144,13 @@ async function fetchMainTrustList(): Promise<string> {
 
 /**
  * Fetch the ITL (Interim Trust List)
- * The ITL consists of two files that need to be merged:
- * - allowed.pem: leaf certificates
- * - anchors.pem: root certificates
+ * The ITL consists of two files with distinct roles:
+ * - allowed.pem: end-entity (leaf) certificates → SDK allowedList
+ * - anchors.pem: root CA certificates → SDK trustAnchors
  */
-async function fetchITL(): Promise<string> {
-  if (itlTrustListPem) {
-    return itlTrustListPem
+async function fetchITL(): Promise<ITL> {
+  if (itl) {
+    return itl
   }
 
   try {
@@ -168,9 +171,9 @@ async function fetchITL(): Promise<string> {
       anchorsResponse.text()
     ])
 
-    itlTrustListPem = allowed + '\n' + anchors
-    console.log('✅ Loaded ITL (Interim Trust List) - merged allowed.pem and anchors.pem')
-    return itlTrustListPem
+    itl = { allowed, anchors }
+    console.log('✅ Loaded ITL (Interim Trust List) - allowed.pem (leaf certs) + anchors.pem (root CAs)')
+    return itl
   } catch (error) {
     console.error('Failed to fetch ITL:', error)
     throw new Error('Failed to fetch ITL')
@@ -271,7 +274,7 @@ async function extractCrJsonWithMetadata(file: File, testCertificates: string[] 
     console.log('Fetching official C2PA trust lists...')
 
     // Fetch main trust list and ITL separately
-    const [mainTrustList, itl] = await Promise.all([
+    const [mainTrustList, itlData] = await Promise.all([
       fetchMainTrustList(),
       fetchITL()
     ])
@@ -296,7 +299,11 @@ async function extractCrJsonWithMetadata(file: File, testCertificates: string[] 
     const officialCrJson = await reader1.manifestStore()
     await reader1.free()
 
-    const vr = officialCrJson.validationResults?.activeManifest
+    console.log('📋 Raw crJSON keys:', Object.keys(officialCrJson))
+    console.log('📋 validationResults:', JSON.stringify(officialCrJson.validationResults ?? null))
+    console.log('📋 manifests[0] vr:', JSON.stringify((officialCrJson.manifests?.[0] as Record<string, unknown>)?.validationResults ?? null))
+
+    const vr = getActiveManifestValidationStatus(officialCrJson)
     const officialUntrusted = vr?.failure?.some(
       (status: ValidationStatus) => status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_UNTRUSTED
     )
@@ -327,7 +334,7 @@ async function extractCrJsonWithMetadata(file: File, testCertificates: string[] 
         const testCrJson = await reader2.manifestStore()
         await reader2.free()
 
-        const testVr = testCrJson.validationResults?.activeManifest
+        const testVr = getActiveManifestValidationStatus(testCrJson)
         const testUntrusted = testVr?.failure?.some(
           (status: ValidationStatus) => status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_UNTRUSTED
         )
@@ -348,7 +355,7 @@ async function extractCrJsonWithMetadata(file: File, testCertificates: string[] 
       }
     }
 
-    const mainVr = crJson.validationResults?.activeManifest
+    const mainVr = getActiveManifestValidationStatus(crJson)
     const isUntrusted = mainVr?.failure?.some(
       (status: ValidationStatus) => status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_UNTRUSTED
     )
@@ -365,13 +372,16 @@ async function extractCrJsonWithMetadata(file: File, testCertificates: string[] 
     if (isUntrusted) {
       console.log('⚠️  Signature untrusted on main list, checking ITL...')
 
+      // allowed.pem = leaf/end-entity certs → allowedList
+      // anchors.pem = root CAs → appended to trustAnchors
       const itlSettings: Settings = {
         verify: {
           verifyTrust: true,
           verifyAfterReading: true
         },
         trust: {
-          trustAnchors: mainTrustList + '\n' + itl
+          trustAnchors: mainTrustList + '\n' + itlData.anchors,
+          allowedList: itlData.allowed,
         }
       }
 
@@ -380,7 +390,7 @@ async function extractCrJsonWithMetadata(file: File, testCertificates: string[] 
         const itlCrJson = await reader2.manifestStore()
         await reader2.free()
 
-        const itlVr = itlCrJson.validationResults?.activeManifest
+        const itlVr = getActiveManifestValidationStatus(itlCrJson)
         console.log('ITL validation results:', {
           success: itlVr?.success?.map((s: ValidationStatus) => s.code),
           failure: itlVr?.failure?.map((f: ValidationStatus) => ({ code: f.code, explanation: f.explanation }))
@@ -394,12 +404,11 @@ async function extractCrJsonWithMetadata(file: File, testCertificates: string[] 
         )
 
         console.log('ITL validation check:', { itlTrusted, itlStillUntrusted })
-
-        const untrustedFailure = itlVr?.failure?.find(
-          (status: ValidationStatus) => status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_UNTRUSTED
-        )
-        if (untrustedFailure) {
-          console.log('ITL still untrusted, reason:', untrustedFailure.explanation)
+        if (itlStillUntrusted) {
+          const untrustedFailure = itlVr?.failure?.find(
+            (status: ValidationStatus) => status.code === VALIDATION_STATUS.SIGNING_CREDENTIAL_UNTRUSTED
+          )
+          console.log('ITL still untrusted, reason:', untrustedFailure?.explanation)
         }
 
         if (itlTrusted && !itlStillUntrusted) {
