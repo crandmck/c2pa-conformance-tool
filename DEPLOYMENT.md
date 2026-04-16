@@ -9,6 +9,7 @@ This is a **100% static site** with no server-side code. All C2PA processing hap
 Deploy by building locally and pushing the built site to the `gh-pages` branch. No build runs in CI, so you avoid environment/base-path issues.
 
 **One-time setup:**
+
 1. Push your code to GitHub.
 2. Go to **Settings → Pages**.
 3. Under "Build and deployment", set:
